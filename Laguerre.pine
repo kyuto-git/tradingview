@@ -1,0 +1,503 @@
+//Laguerre Filter
+
+//https://jp.tradingview.com/script/HCfSsPja-Laguerre-Filter/
+
+//@version=3
+// Kıvanç Özbilgiç
+study("Laguerre Filter", shorttitle="LagF", overlay=true)
+src = input(title="Source", defval=hl2)
+alpha = input(title="Alpha", type=float, minval=0, maxval=1, step=0.1, defval=0.2)
+colorchange = input(title="Change Color ?", type=bool, defval=true)
+gamma=1-alpha
+L0 = 0.0
+L0 := (1-gamma) * src + gamma * nz(L0[1])
+L1 = 0.0
+L1 := -gamma * L0 + nz(L0[1]) + gamma * nz(L1[1])
+
+L2 = 0.0
+L2 := -gamma * L1 + nz(L1[1]) + gamma * nz(L2[1])
+
+L3 = 0.0
+L3 := -gamma * L2 + nz(L2[1]) + gamma * nz(L3[1])
+
+LagF = (L0 + 2 * L1 + 2 * L2 + L3) / 6
+
+Color = colorchange ? (LagF > LagF[1] ? green : red) : yellow
+plot(LagF, title="LagF", linewidth=2, color=Color, transp=0)
+
+
+
+
+
+//////////////////////////////
+//Laguerre RSI Multi-Time Frame
+
+//https://jp.tradingview.com/script/n7S1radh-Laguerre-RSI-Multi-Time-Frame/
+
+// The Laguerre RSI Indicator is a modification of the well-known 
+// relative strength indicator or RSI. John F. Ehlers, the famous 
+// trader who created the Laguerre RSI, tried to avoid whipsaws 
+// (noise) and lag produced by smoothing technical indicators by 
+// applying a filter and some changes to the original relative 
+// strength indicator. The result is a technical indicator that 
+// is more responsive and has much less noise than the original 
+// RSI indicator.
+
+// The multi-time frame LRSI is used to have multiple RSI
+// oscillators on the screen at once that are derived from
+// different intervals. This allows the trader to see setups
+// in multiple time frames.
+
+// Repainting removed, desired intervals that are beyond the 
+// chart interval will show incremental updates that are anchored
+// to the previous known and locked LRSI values.
+
+// @version=3
+study(title="Laguerre RSI Multi-Time Frame", shorttitle="Laguerre RSI Multi")
+
+gamma1 = input(title = "Gamma 1", defval = 0.5, minval=-0.1, maxval = 0.9, step = 0.01)
+intval1 = input("M15", "Interval Close Length", options=["M1", "M3", "M5", "M15", "M30", "M45", "H1", "H2", "H3", "H4", "H8", "H12", "Day", "Week", "Month", "Year"])
+useChartIntVal1 = input(false, "Use Chart Interval Instead for Resolution 1?")
+
+gamma2 = input(title = "Gamma 2", defval = 0.5, minval=-0.1, maxval = 0.9, step = 0.01)
+intval2 = input("H1", "Interval Close Length", options=["M1", "M3", "M5", "M15", "M30", "M45", "H1", "H2", "H3", "H4", "H8", "H12", "Day", "Week", "Month", "Year"])
+useChartIntVal2 = input(false, "Use Chart Interval Instead for Resolution 2?")
+
+gamma3 = input(title = "Gamma 3", defval = 0.5, minval=-0.1, maxval = 0.9, step = 0.01)
+intval3 = input("Day", "Interval Close Length", options=["M1", "M3", "M5", "M15", "M30", "M45", "H1", "H2", "H3", "H4", "H8", "H12", "Day", "Week", "Month", "Year"])
+useChartIntVal3 = input(false, "Use Chart Interval Instead for Resolution 3?")
+
+// Correct the interval used
+
+getRez(intval) =>
+    int = iff(intval == "M1", "1", iff(intval == "M3", "3", iff(intval == "M5", "5", iff(intval == "M15", "15", iff(intval == "M30", "30", iff(intval == "M45", "45", iff(intval == "H1", "60", iff(intval == "H2", "120", iff(intval == "H3", "180", iff(intval == "H4", "240", iff(intval == "H8", "480", iff(intval == "H12", "720", iff(intval == "Day", "D", iff(intval == "Week", "W", iff(intval == "Month", "M", iff(intval == "Year", "12M", "60"))))))))))))))))
+
+res1 = getRez(intval1)
+res2 = getRez(intval2)
+res3 = getRez(intval3)
+
+// Consider the resolution of the chart and/or if it
+// is desired to use the chart interval to determine
+// the LRSI. Remove repaining for desired intervals
+// that are greater than the chart interval by anchoring
+// the previous "locked" value to when the previous
+// session interval ended
+
+getRSI(gamma, rez, useChartIntVal) =>
+    start = security(tickerid, rez, time, lookahead = true)
+    newSession = iff(change(start), 1, 0)
+    sinceNew = barssince(newSession)
+    
+    barsInInt = 0
+    barsInInt := na(barsInInt[1]) or sinceNew > nz(barsInInt[1]) ? sinceNew : nz(barsInInt[1]) 
+    
+    isChartIntVal = useChartIntVal or barsInInt == 0
+
+    xL0 = 0.0
+    xL0 := isChartIntVal ? (1 - gamma) * close + gamma * nz(xL0[1], 1) : (1 - gamma) * close + gamma * valuewhen(newSession, nz(xL0[1], 1), 0) 
+    
+    xL1 = 0.0
+    xL1 := isChartIntVal ? -gamma * xL0 + nz(xL0[1], 1) + gamma * nz(xL1[1], 1) : -gamma * xL0 + valuewhen(newSession, nz(xL0[1], 1), 0) + gamma * valuewhen(newSession, nz(xL1[1], 1), 0)
+    
+    xL2 = 0.0
+    xL2 := isChartIntVal ? -gamma * xL1 + nz(xL1[1], 1) + gamma * nz(xL2[1], 1) : -gamma * xL1 + valuewhen(newSession, nz(xL1[1], 1), 0) + gamma * valuewhen(newSession, nz(xL2[1], 1), 0)
+    
+    xL3 = 0.0
+    xL3 := isChartIntVal ? -gamma * xL2 + nz(xL2[1], 1) + gamma * nz(xL3[1], 1) : -gamma * xL2 + valuewhen(newSession, nz(xL2[1], 1), 0) + gamma * valuewhen(newSession, nz(xL3[1], 1), 0)
+
+    CU = (xL0 >= xL1 ? xL0 - xL1 : 0) + (xL1 >= xL2 ? xL1 - xL2 : 0)  + (xL2 >= xL3 ? xL2 - xL3 : 0)
+    CD = (xL0 >= xL1 ? 0 : xL1 - xL0) + (xL1 >= xL2 ? 0 : xL2 - xL1)  + (xL2 >= xL3 ? 0 : xL3 - xL2)
+
+    rsi = CU + CD != 0 ? CU / (CU + CD) : 0
+
+rsi1 = getRSI(gamma1, res1, useChartIntVal1)
+rsi2 = getRSI(gamma2, res2, useChartIntVal2)
+rsi3 = getRSI(gamma3, res3, useChartIntVal3)
+
+plot(rsi3, color = #FFA500EE, linewidth = 3, title = "Laguerre RSI 3")
+plot(rsi2, color = #CCCCCCEE, linewidth = 2, title = "Laguerre RSI 2")
+plot(rsi1, color = #FF00FFFF, linewidth = 1, title = "Laguerre RSI 1")
+
+hline(0.8, color = #0000FFE2, linestyle = line, title = "Overbought")
+hline(0.2, color = #0000FFE2, linestyle = line, title = "Oversold")
+
+
+
+
+
+//////////////////////////////
+//[blackcat] L2 Ehlers Laguerre RSI Indicator
+
+//https://jp.tradingview.com/script/IQ7MH2WO-blackcat-L2-Ehlers-Laguerre-RSI-Indicator/
+
+    // ____  __    ___   ________ ___________  ___________ __  ____ ___ 
+   // / __ )/ /   /   | / ____/ //_/ ____/   |/_  __<  / // / / __ |__ \
+  // / __  / /   / /| |/ /   / ,< / /   / /| | / /  / / // /_/ / / __/ /
+ // / /_/ / /___/ ___ / /___/ /| / /___/ ___ |/ /  / /__  __/ /_/ / __/ 
+// /_____/_____/_/  |_\____/_/ |_\____/_/  |_/_/  /_/  /_/  \____/____/                                              
+
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © blackcat1402
+//@version=4
+
+study(title="[blackcat] L2 Ehlers Laguerre RSI Indicator", shorttitle="BCL2ELRI", overlay=false)
+
+//Inputs
+Price = input(close, title = "Price")
+gamma = input(.5, title = "gamma")
+
+
+// Vars: 
+L0 = 0.00
+L1 = 0.00
+L2 = 0.00
+L3 = 0.00
+CU = 0.00
+CD = 0.00
+RSI = 0.00
+
+L0 := (1 - gamma)*Price + gamma*nz(L0[1])
+L1 := -gamma*L0 + nz(L0[1]) + gamma*nz(L1[1])
+L2 := -gamma*L1 + nz(L1[1]) + gamma*nz(L2[1])
+L3 := -gamma*L2 + nz(L2[1]) + gamma*nz(L3[1])
+CU := (L0 >= L1 ? L0 - L1 : 0) + (L1 >= L2 ? L1 - L2 : 0) + (L2 >= L3 ? L2 - L3 : 0)
+CD := (L0 >= L1 ? 0 : L1 - L0) + (L1 >= L2 ? 0 : L2 - L1) + (L2 >= L3 ? 0 : L3 - L2)
+RSI := CU + CD != 0 ? CU / (CU + CD) : RSI
+
+
+plot1 = plot(RSI, "RSI", color=color.yellow, linewidth=3)
+plot2 = plot(nz(RSI[1]), "nz(RSI[1])", color=color.fuchsia, linewidth =3 )
+fill(plot1, plot2, color=nz(RSI[1])<RSI ? color.yellow : color.fuchsia, transp=60)
+
+// Plots cross labels
+l = crossunder(RSI, nz(RSI[1])) ? 
+       label.new (bar_index, nz(RSI[1])+0.01, "SELL", color=color.red, textcolor=color.white, style=label.style_labeldown, yloc=yloc.price, size=size.small) :
+       crossover(RSI, nz(RSI[1])) ?
+           label.new (bar_index, nz(RSI[1])-0.01, "BUY", color=color.green, textcolor=color.white, style=label.style_labelup, yloc=yloc.price, size=size.small) :
+           na
+// plot RSI divergence
+lbR = input(title="Pivot Lookback Right", defval=5)
+lbL = input(title="Pivot Lookback Left", defval=5)
+rangeUpper = input(title="Max of Lookback Range", defval=60)
+rangeLower = input(title="Min of Lookback Range", defval=5)
+plotBull = input(title="Plot Bullish", defval=true)
+plotHiddenBull = input(title="Plot Hidden Bullish", defval=false)
+plotBear = input(title="Plot Bearish", defval=true)
+plotHiddenBear = input(title="Plot Hidden Bearish", defval=false)
+
+bearColor = color.red
+bullColor = color.green
+hiddenBullColor = color.green
+hiddenBearColor = color.red
+textColor = color.white
+noneColor = color.new(color.white, 100)
+
+osc = RSI
+
+
+plFound = na(pivotlow(osc, lbL, lbR)) ? false : true
+phFound = na(pivothigh(osc, lbL, lbR)) ? false : true
+
+_inRange(cond) =>
+    bars = barssince(cond == true)
+    rangeLower <= bars and bars <= rangeUpper
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+
+// Osc: Higher Low
+oscHL = osc[lbR] > valuewhen(plFound, osc[lbR], 1) and _inRange(plFound[1])
+
+// Price: Lower Low
+priceLL = low[lbR] < valuewhen(plFound, low[lbR], 1)
+
+bullCond = plotBull and priceLL and oscHL and plFound
+
+plot(
+	 plFound ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bullish",
+	 linewidth=7,
+	 color=(bullCond ? bullColor : noneColor),
+	 transp=0
+	 )
+
+plotshape(
+	 bullCond ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bullish Label",
+	 text=" Bull ",
+	 style=shape.labelup,
+	 location=location.absolute,
+	 color=bullColor,
+	 textcolor=textColor,
+	 transp=0
+	 )
+
+alertcondition(bullCond, title="Regular bullish divergence found", message="Check charts for a regular bullish divergence found")
+
+//------------------------------------------------------------------------------
+// Hidden Bullish
+
+// Osc: Lower Low
+oscLL = osc[lbR] < valuewhen(plFound, osc[lbR], 1) and _inRange(plFound[1])
+
+// Price: Higher Low
+priceHL = low[lbR] > valuewhen(plFound, low[lbR], 1)
+
+hiddenBullCond = plotHiddenBull and priceHL and oscLL and plFound
+
+plot(
+	 plFound ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bullish",
+	 linewidth=7,
+	 color=(hiddenBullCond ? hiddenBullColor : noneColor),
+	 transp=0
+	 )
+
+plotshape(
+	 hiddenBullCond ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bullish Label",
+	 text=" H Bull ",
+	 style=shape.labelup,
+	 location=location.absolute,
+	 color=bullColor,
+	 textcolor=textColor,
+	 transp=0
+	 )
+
+alertcondition(hiddenBullCond, title="Hidden bullish divergence found", message="Check charts for a hidden bullish divergence found")
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+
+// Osc: Lower High
+oscLH = osc[lbR] < valuewhen(phFound, osc[lbR], 1) and _inRange(phFound[1])
+
+// Price: Higher High
+priceHH = high[lbR] > valuewhen(phFound, high[lbR], 1)
+
+bearCond = plotBear and priceHH and oscLH and phFound
+
+plot(
+	 phFound ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bearish",
+	 linewidth=7,
+	 color=(bearCond ? bearColor : noneColor),
+	 transp=0
+	 )
+
+plotshape(
+	 bearCond ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bearish Label",
+	 text=" Bear ",
+	 style=shape.labeldown,
+	 location=location.absolute,
+	 color=bearColor,
+	 textcolor=textColor,
+	 transp=0
+	 )
+
+alertcondition(bearCond, title="Regular bearish divergence found", message="Check charts for a regular bearish divergence found")
+
+//------------------------------------------------------------------------------
+// Hidden Bearish
+
+// Osc: Higher High
+oscHH = osc[lbR] > valuewhen(phFound, osc[lbR], 1) and _inRange(phFound[1])
+
+// Price: Lower High
+priceLH = high[lbR] < valuewhen(phFound, high[lbR], 1)
+
+hiddenBearCond = plotHiddenBear and priceLH and oscHH and phFound
+
+plot(
+	 phFound ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bearish",
+	 linewidth=7,
+	 color=(hiddenBearCond ? hiddenBearColor : noneColor),
+	 transp=0
+	 )
+
+plotshape(
+	 hiddenBearCond ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bearish Label",
+	 text=" H Bear ",
+	 style=shape.labeldown,
+	 location=location.absolute,
+	 color=bearColor,
+	 textcolor=textColor,
+	 transp=0
+	 )
+
+alertcondition(hiddenBearCond, title="Hidden bearish divergence found", message="Check charts for a hidden bearish divergence found")
+
+
+
+
+
+
+//Ehlers Laguerre Filter [CC]
+
+//https://jp.tradingview.com/script/6aMJzwII-Ehlers-Laguerre-Filter-CC/
+
+
+//@version=4
+// Copyright (c) 2019-present, Franklin Moormann (cheatcountry)
+// Ehlers Laguerre Filter [CC] script may be freely distributed under the MIT license.
+study("Ehlers Laguerre Filter [CC]", overlay=true)
+
+inp = input(title="Source", type=input.source, defval=hl2)
+res = input(title="Resolution", type=input.resolution, defval="")
+rep = input(title="Allow Repainting?", type=input.bool, defval=false)
+bar = input(title="Allow Bar Color Change?", type=input.bool, defval=true)
+src = security(syminfo.tickerid, res, inp[rep ? 0 : barstate.isrealtime ? 1 : 0])[rep ? 0 : barstate.isrealtime ? 0 : 1]
+gamma = input(title="Gamma", type=input.float, defval=0.8, minval=0.01, step = 0.01)
+
+l0 = 0.0
+l0 := ((1 - gamma) * src) + (gamma * nz(l0[1]))
+
+l1 = 0.0
+l1 := (-gamma * l0) + nz(l0[1]) + (gamma * nz(l1[1]))
+
+l2 = 0.0
+l2 := (-gamma * l1) + nz(l1[1]) + (gamma * nz(l2[1]))
+
+l3 = 0.0
+l3 := (-gamma * l2) + nz(l2[1]) + (gamma * nz(l3[1]))
+
+filt = (l0 + (2 * l1) + (2 * l2) + l3) / 6
+fir = (src + (2 * nz(src[1])) + (2 * nz(src[2])) + nz(src[3])) / 6
+
+sig = fir > filt ? 1 : fir < filt ? -1 : 0
+lfColor = sig > 0 ? color.green : sig < 0 ? color.red : color.black
+alertcondition(crossover(sig, 0), "Buy Signal", "Bullish Change Detected")
+alertcondition(crossunder(sig, 0), "Sell Signal", "Bearish Change Detected")
+barcolor(bar ? lfColor : na)
+plot(filt, title="FILT", color=lfColor, linewidth=2)
+plot(fir, title="FIR", color=color.black, linewidth=1)
+
+
+
+
+
+
+
+//Ehlers Laguerre Relative Strength Index [CC]
+
+//https://jp.tradingview.com/script/iUl3zTql-Ehlers-Laguerre-Relative-Strength-Index-CC/
+
+
+
+//@version=4
+// Copyright (c) 2019-present, Franklin Moormann (cheatcountry)
+// Ehlers Laguerre Relative Strength Index [CC] script may be freely distributed under the MIT license.
+study("Ehlers Laguerre Relative Strength Index [CC]", overlay=false)
+
+inp = input(title="Source", type=input.source, defval=close)
+res = input(title="Resolution", type=input.resolution, defval="")
+rep = input(title="Allow Repainting?", type=input.bool, defval=false)
+bar = input(title="Allow Bar Color Change?", type=input.bool, defval=true)
+src = security(syminfo.tickerid, res, inp[rep ? 0 : barstate.isrealtime ? 1 : 0])[rep ? 0 : barstate.isrealtime ? 0 : 1]
+gamma = input(title="Gamma", type=input.float, defval=0.5, minval=0.01, step = 0.01)
+obLevel = input(title="ObLevel", type=input.float, defval=0.8, minval=0.01, step=0.01)
+osLevel = input(title="OsLevel", type=input.float, defval=0.2, minval=0.01, step=0.01)
+
+l0 = 0.0
+l0 := ((1 - gamma) * src) + (gamma * nz(l0[1]))
+
+l1 = 0.0
+l1 := (-gamma * l0) + nz(l0[1]) + (gamma * nz(l1[1]))
+
+l2 = 0.0
+l2 := (-gamma * l1) + nz(l1[1]) + (gamma * nz(l2[1]))
+
+l3 = 0.0
+l3 := (-gamma * l2) + nz(l2[1]) + (gamma * nz(l3[1]))
+
+cu = l0 >= l1 ? l0 - l1 : 0
+cu := cu + (l1 >= l2 ? l1 - l2 : 0)
+cu := cu + (l2 >= l3 ? l2 - l3 : 0)
+
+cd = l0 >= l1 ? 0 : l1 - l0
+cd := cd + (l1 >= l2 ? 0 : l2 - l1)
+cd := cd + (l2 >= l3 ? 0 : l3 - l2)
+
+lrsi = cu + cd != 0 ? cu / (cu + cd) : 0
+lrsiEma = nz(lrsi[1])
+
+hline(obLevel, color=color.green)
+hline(osLevel, color=color.red)
+sig = lrsi > lrsiEma ? 1 : lrsi < lrsiEma? -1 : lrsi > obLevel ? 1 : lrsi < osLevel ? -1 : 0
+lrsiColor = sig > 0 ? color.green : sig < 0 ? color.red : color.black
+alertcondition(crossover(sig, 0), "Buy Signal", "Bullish Change Detected")
+alertcondition(crossunder(sig, 0), "Sell Signal", "Bearish Change Detected")
+barcolor(bar ? lrsiColor : na)
+plot(lrsi, title="LRSI", color=lrsiColor, linewidth=2)
+plot(lrsiEma, title="Signal", color=color.black, linewidth=1)
+
+
+
+
+
+
+
+//TheLark LMA (Laguerre) v2 - multi timeframe
+
+//https://jp.tradingview.com/script/u3irwHjc-TheLark-LMA-Laguerre-v2-multi-timeframe/
+
+
+study(title = "TheLark LMA v2 (Laguerre)", shorttitle="TheLark LMAv2", overlay=true)
+
+//•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•//   
+//                                             //
+//         LAGUERRE MA v2 BY THELARK           //
+//                 ~ 3-4-15 ~                  //
+//                                             //
+//                     •/•                     //
+//                                             //
+//    https://www.tradingview.com/u/TheLark    //
+//                                             //
+//•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•/•//
+
+// The Laguerre Average (filter) was discovered by John Ehlers.
+// It's a newer type of averaging that is meant to take out as much of the
+// inherent lag that your typical EMA and SMA's give at the start of a major trend change.
+// So what you get is an average that turns more quickly at major trend changes,
+// and doesn't get tripped up on the noise (as much). 
+// V2 has added multi timeframe support.
+// Blatantly stole Chris Moody's code for multi timeframe, because why re-invent the wheel? Thanks Chris ;P
+// BUT -- modified the coloring to work correctly with higher timeframes, just another Lark hack, so it's a give and take :)
+
+//defs
+p = hl2
+//inputs
+Gamma = input(0.77)
+useCurrentRes = input(true, title="Use Current Chart Resolution?")
+resCustom = input(title="Use Different Timeframe? (Uncheck Box Above).", type=resolution, defval="D")
+res = useCurrentRes ? period : resCustom
+sd = input(true, title="Show dots?")
+ccol = input(true,title="Change Color?")
+//calc
+lag(g) =>
+    L0 = (1 - g)*p+g*nz(L0[1])
+    L1 = -g*L0+nz(L0[1])+g*nz(L1[1])
+    L2 = -g*L1+nz(L1[1])+g*nz(L2[1])
+    L3 = -g*L2+nz(L2[1])+g*nz(L3[1])
+    f = (L0 + 2*L1 + 2*L2 + L3)/6
+    f
+//plots
+lma = security(tickerid, res, lag(Gamma))
+//col = ccol ? (lma > lma[1]?1:2):2
+col = ccol ? ( lma == lma[1] and col[1] == 1 ? 1 : lma == lma[1] and col[1] == 2 ? 2 : lma > lma[1] ? 1 : 2) : 2
+col2 = col < 2 ? #0094FF : #FF3571
+up = col < col[1] ? 1 : 0
+down = col > col[1] ? 1 : 0
+plot(lma,linewidth=2,color=col2)
+plot(sd and cross(up,down) ? lma : na,style=circles, linewidth=4, color=col2 )

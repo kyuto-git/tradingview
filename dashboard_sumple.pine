@@ -1,0 +1,201 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © cbryce23
+
+//@version=5
+indicator(title="RSI MTF Dashboard", shorttitle = "RSI MTF Dashboard", overlay=true)
+
+//========== Tickers
+useT1 = input(true,"", inline = "1", group="Tickers")
+t1 = input.symbol("CAPITALCOM:US500","", inline = "1", group="Tickers")
+useT2 = input(true,"", inline = "2", group="Tickers")
+t2 = input.symbol("CAPITALCOM:US30" , "", inline = "2", group="Tickers")
+useT3 = input(true,"", inline = "3", group="Tickers")
+t3 = input.symbol("CAPITALCOM:US100", "", inline = "3", group="Tickers")
+useT4 = input(true,"", inline = "4", group="Tickers")
+t4 = input.symbol("CAPITALCOM:UK100", "", inline = "4", group="Tickers")
+useT5 = input(true,"", inline = "5", group="Tickers")
+t5 = input.symbol("CAPITALCOM:DE40" , "", inline = "5", group="Tickers")
+useT6 = input(true,"", inline = "6", group="Tickers")
+t6 = input.symbol("CAPITALCOM:EU50" , "", inline = "6", group="Tickers")
+useT7 = input(true,"", inline = "7", group="Tickers")
+t7 = input.symbol("CAPITALCOM:FR40" , "", inline = "7", group="Tickers")
+useT8 = input(true,"", inline = "8", group="Tickers")
+t8 = input.symbol("CAPITALCOM:SP35" , "", inline = "8", group="Tickers")
+
+//========== Timeframes
+TF1 = input.timeframe("15",title="TF1",group="Timeframes")
+TF2 = input.timeframe("30",title="TF2",group="Timeframes")
+TF3 = input.timeframe("60",title="TF3",group="Timeframes")
+TF4 = input.timeframe("240",title="TF4",group="Timeframes")
+TF5 = input.timeframe("D",title="TF5",group="Timeframes")
+
+//========== RSI
+rsiPeriod = input.int(title="RSI Period", defval=14, minval=2, maxval=365 , group='RSI' )
+rsiBull = input.int(title="RSI Bullish", defval=65, minval=51, maxval=100, group='RSI')
+rsiBear = input.int(title="RSI Bearish", defval=35, minval=0, maxval=50, group='RSI')
+RSI = ta.rsi(close, rsiPeriod)
+
+//========== Style Settings
+
+dash_loc = input.session("Bottom Left","Dashboard Location"  ,options=["Top Right","Bottom Right","Top Left","Bottom Left", "Middle Right","Bottom Center"]  ,group='Style Settings')
+
+text_size = input.session('Small',"Dashboard Size"  ,options=["Tiny","Small","Normal","Large"]  ,group='Style Settings')
+
+cell_up = input(#4caf50,'Bullish Cell Color'  ,group='Style Settings')
+cell_dn = input(#FF5252,'Bearish Cell Color'  ,group='Style Settings')
+cell_neutral = input(color.gray,'Neutral Cell Color'  ,group='Style Settings')
+txt_col = input(color.silver,'Text/Frame Color'  ,group='Style Settings')
+cell_transp = input.int(25,'Cell Transparency'  ,minval=0  ,maxval=100  ,group='Style Settings')
+  
+//========== RSI Values
+
+//Ticker 1 RSI Values
+t1rsi1 = request.security(t1,TF1,ta.rsi(close,rsiPeriod))
+t1rsi2 = request.security(t1,TF2,ta.rsi(close,rsiPeriod))
+t1rsi3 = request.security(t1,TF3,ta.rsi(close,rsiPeriod))
+t1rsi4 = request.security(t1,TF4,ta.rsi(close,rsiPeriod))
+t1rsi5 = request.security(t1,TF5,ta.rsi(close,rsiPeriod))
+//Ticker 2 RSI Values
+t2rsi1 = request.security(t2,TF1,ta.rsi(close,rsiPeriod))
+t2rsi2 = request.security(t2,TF2,ta.rsi(close,rsiPeriod))
+t2rsi3 = request.security(t2,TF3,ta.rsi(close,rsiPeriod))
+t2rsi4 = request.security(t2,TF4,ta.rsi(close,rsiPeriod))
+t2rsi5 = request.security(t2,TF5,ta.rsi(close,rsiPeriod))
+//Ticker 3 RSI Values
+t3rsi1 = request.security(t3,TF1,ta.rsi(close,rsiPeriod))
+t3rsi2 = request.security(t3,TF2,ta.rsi(close,rsiPeriod))
+t3rsi3 = request.security(t3,TF3,ta.rsi(close,rsiPeriod))
+t3rsi4 = request.security(t3,TF4,ta.rsi(close,rsiPeriod))
+t3rsi5 = request.security(t3,TF5,ta.rsi(close,rsiPeriod))
+//Ticker 4 RSI Values
+t4rsi1 = request.security(t4,TF1,ta.rsi(close,rsiPeriod))
+t4rsi2 = request.security(t4,TF2,ta.rsi(close,rsiPeriod))
+t4rsi3 = request.security(t4,TF3,ta.rsi(close,rsiPeriod))
+t4rsi4 = request.security(t4,TF4,ta.rsi(close,rsiPeriod))
+t4rsi5 = request.security(t4,TF5,ta.rsi(close,rsiPeriod))
+//Ticker 5 RSI Values
+t5rsi1 = request.security(t5,TF1,ta.rsi(close,rsiPeriod))
+t5rsi2 = request.security(t5,TF2,ta.rsi(close,rsiPeriod))
+t5rsi3 = request.security(t5,TF3,ta.rsi(close,rsiPeriod))
+t5rsi4 = request.security(t5,TF4,ta.rsi(close,rsiPeriod))
+t5rsi5 = request.security(t5,TF5,ta.rsi(close,rsiPeriod))
+//Ticker 6 RSI Values
+t6rsi1 = request.security(t6,TF1,ta.rsi(close,rsiPeriod))
+t6rsi2 = request.security(t6,TF2,ta.rsi(close,rsiPeriod))
+t6rsi3 = request.security(t6,TF3,ta.rsi(close,rsiPeriod))
+t6rsi4 = request.security(t6,TF4,ta.rsi(close,rsiPeriod))
+t6rsi5 = request.security(t6,TF5,ta.rsi(close,rsiPeriod))
+//Ticker 7 RSI Values
+t7rsi1 = request.security(t7,TF1,ta.rsi(close,rsiPeriod))
+t7rsi2 = request.security(t7,TF2,ta.rsi(close,rsiPeriod))
+t7rsi3 = request.security(t7,TF3,ta.rsi(close,rsiPeriod))
+t7rsi4 = request.security(t7,TF4,ta.rsi(close,rsiPeriod))
+t7rsi5 = request.security(t7,TF5,ta.rsi(close,rsiPeriod))
+//Ticker 8 RSI Values
+t8rsi1 = request.security(t8,TF1,ta.rsi(close,rsiPeriod))
+t8rsi2 = request.security(t8,TF2,ta.rsi(close,rsiPeriod))
+t8rsi3 = request.security(t8,TF3,ta.rsi(close,rsiPeriod))
+t8rsi4 = request.security(t8,TF4,ta.rsi(close,rsiPeriod))
+t8rsi5 = request.security(t8,TF5,ta.rsi(close,rsiPeriod))
+
+
+/// -------------- Table Start -------------------
+
+
+var table_position = dash_loc == 'Top Left' ? position.top_left :
+  dash_loc == 'Bottom Left' ? position.bottom_left :
+  dash_loc == 'Middle Right' ? position.middle_right :
+  dash_loc == 'Bottom Center' ? position.bottom_center :
+  dash_loc == 'Top Right' ? position.top_right : position.bottom_right
+  
+var table_text_size = text_size == 'Tiny' ? size.tiny :
+  text_size == 'Small' ? size.small :
+  text_size == 'Normal' ? size.normal : size.large
+
+var t = table.new(table_position,8,9,
+  frame_color=txt_col,
+  frame_width=1,
+  border_color=txt_col,
+  border_width=1)
+
+if (barstate.islast)
+    //headings
+    table.cell(t,1,0, 'Symbol' ,text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+    table.cell(t,2,0, TF1 ,text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+    table.cell(t,3,0, TF2 ,text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+    table.cell(t,4,0, TF3 ,text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+    table.cell(t,5,0, TF4 ,text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+    table.cell(t,6,0, TF5 ,text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+
+    // 1
+    if useT1
+        table.cell(t,1,1, str.replace_all(t1, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,1, str.tostring(t1rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t1rsi1 >= rsiBull ? cell_up : t1rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,1, str.tostring(t1rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t1rsi2 >= rsiBull ? cell_up : t1rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,1, str.tostring(t1rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t1rsi3 >= rsiBull ? cell_up : t1rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,1, str.tostring(t1rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t1rsi4 >= rsiBull ? cell_up : t1rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,1, str.tostring(t1rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t1rsi5 >= rsiBull ? cell_up : t1rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+
+    // 2
+    if useT2
+        table.cell(t,1,2, str.replace_all(t2, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,2, str.tostring(t2rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t2rsi1 >= rsiBull ? cell_up : t2rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,2, str.tostring(t2rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t2rsi2 >= rsiBull ? cell_up : t2rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,2, str.tostring(t2rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t2rsi3 >= rsiBull ? cell_up : t2rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,2, str.tostring(t2rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t2rsi4 >= rsiBull ? cell_up : t2rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,2, str.tostring(t2rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t2rsi5 >= rsiBull ? cell_up : t2rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+    
+    // 3
+    if useT3
+        table.cell(t,1,3, str.replace_all(t3, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,3, str.tostring(t3rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t3rsi1 >= rsiBull ? cell_up : t3rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,3, str.tostring(t3rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t3rsi2 >= rsiBull ? cell_up : t3rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,3, str.tostring(t3rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t3rsi3 >= rsiBull ? cell_up : t3rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,3, str.tostring(t3rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t3rsi4 >= rsiBull ? cell_up : t3rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,3, str.tostring(t3rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t3rsi5 >= rsiBull ? cell_up : t3rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+    
+    // 4
+    if useT4
+        table.cell(t,1,4, str.replace_all(t4, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,4, str.tostring(t4rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t4rsi1 >= rsiBull ? cell_up : t4rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,4, str.tostring(t4rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t4rsi2 >= rsiBull ? cell_up : t4rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,4, str.tostring(t4rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t4rsi3 >= rsiBull ? cell_up : t4rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,4, str.tostring(t4rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t4rsi4 >= rsiBull ? cell_up : t4rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,4, str.tostring(t4rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t4rsi5 >= rsiBull ? cell_up : t4rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+    
+    // 5
+    if useT5
+        table.cell(t,1,5, str.replace_all(t5, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,5, str.tostring(t5rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t5rsi1 >= rsiBull ? cell_up : t5rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,5, str.tostring(t5rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t5rsi2 >= rsiBull ? cell_up : t5rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,5, str.tostring(t5rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t5rsi3 >= rsiBull ? cell_up : t5rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,5, str.tostring(t5rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t5rsi4 >= rsiBull ? cell_up : t5rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,5, str.tostring(t5rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t5rsi5 >= rsiBull ? cell_up : t5rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+    
+    // 6
+    if useT6
+        table.cell(t,1,6, str.replace_all(t6, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,6, str.tostring(t6rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t6rsi1 >= rsiBull ? cell_up : t6rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,6, str.tostring(t6rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t6rsi2 >= rsiBull ? cell_up : t6rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,6, str.tostring(t6rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t6rsi3 >= rsiBull ? cell_up : t6rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,6, str.tostring(t6rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t6rsi4 >= rsiBull ? cell_up : t6rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,6, str.tostring(t6rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t6rsi5 >= rsiBull ? cell_up : t6rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+
+    // 7
+    if useT7
+        table.cell(t,1,7, str.replace_all(t7, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,7, str.tostring(t7rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t7rsi1 >= rsiBull ? cell_up : t7rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,7, str.tostring(t7rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t7rsi2 >= rsiBull ? cell_up : t7rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,7, str.tostring(t7rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t7rsi3 >= rsiBull ? cell_up : t7rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,7, str.tostring(t7rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t7rsi4 >= rsiBull ? cell_up : t7rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,7, str.tostring(t7rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t7rsi5 >= rsiBull ? cell_up : t7rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+    
+    // 8
+    if useT8
+        table.cell(t,1,8, str.replace_all(t8, syminfo.prefix + ":", ''),text_color=color.white,text_size=table_text_size,bgcolor=color.black)
+        table.cell(t,2,8, str.tostring(t8rsi1, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t8rsi1 >= rsiBull ? cell_up : t8rsi1 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,3,8, str.tostring(t8rsi2, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t8rsi2 >= rsiBull ? cell_up : t8rsi2 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,4,8, str.tostring(t8rsi3, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t8rsi3 >= rsiBull ? cell_up : t8rsi3 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,5,8, str.tostring(t8rsi4, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t8rsi4 >= rsiBull ? cell_up : t8rsi4 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+        table.cell(t,6,8, str.tostring(t8rsi5, '#.#'),text_color=txt_col,text_size=table_text_size, bgcolor=color.new(t8rsi5 >= rsiBull ? cell_up : t8rsi5 <= rsiBear ? cell_dn : cell_neutral,cell_transp))
+

@@ -1,0 +1,578 @@
+//@version=5
+indicator("Custom ALMA Bollinger Bands and variety ALMA and variety alert", overlay=true)
+
+// ALMA関数の定義
+// calcAlma(src, length, offset, sigma) =>
+//     m = math.floor(offset * (length - 1))
+//     s = length / sigma
+//     norm = 0.0
+//     sum = 0.0
+//     for i = 0 to length - 1
+//         weight = math.exp(-1 * math.pow(i - m, 2) / (2 * math.pow(s, 2)))
+//         norm := norm + weight
+//         sum := sum + src[i] * weight
+//     sum / norm
+
+// ALMAとボリンジャーバンドの計算
+length = input(20, title="Period")
+price = input(close, title="Source")
+alma = ta.alma(price, length, 0.85, 6)
+stdDev = ta.stdev(price, length)
+upper1 = alma + stdDev
+upper2 = alma + 2 * stdDev
+upper3 = alma + 3 * stdDev
+lower1 = alma - stdDev
+lower2 = alma - 2 * stdDev
+lower3 = alma - 3 * stdDev
+
+// ボリンジャーバンドのプロット
+plot(alma, "ALMA", color=color.blue, linewidth = 3)
+plot(upper1, "Upper Band 1 Sigma", color=color.rgb(7, 254, 176), linewidth = 2)
+plot(upper2, "Upper Band 2 Sigma", color=color.rgb(255, 187, 114), linewidth = 3)
+plot(upper3, "Upper Band 3 Sigma", color=color.red, linewidth = 4)
+plot(lower1, "Lower Band 1 Sigma", color=color.rgb(7, 254, 176), linewidth = 2)
+plot(lower2, "Lower Band 2 Sigma", color=color.rgb(255, 187, 114), linewidth = 3)
+plot(lower3, "Lower Band 3 Sigma", color=color.red, linewidth = 4)
+
+// ローソク足下降アラート条件
+bearishCondition = (close[1] > open[1] and close < open and open[1] > close and low[1] > low and (high[1] - close[1]) > (high - open) and close[1] < upper2 and close[1] > upper1 and open < upper2 and open > upper1)
+// ローソク足上昇アラート条件
+bullishCondition = (close[1] < open[1] and close > open and open[1] < close and high[1] < high and (low[1] - close[1]) < (low - open) and close[1] > lower2 and close[1] < lower1 and open > lower2 and open < lower1)
+
+plotshape(bullishCondition, title="bullish_candle", text="bullish_candle", color=color.green, location=location.belowbar, style=shape.labelup, size=size.tiny, textcolor=color.white, transp=0)
+plotshape(bearishCondition, title="bearish_candle", text="bearish_candle", color=color.red, location=location.abovebar, style=shape.labeldown, size=size.tiny, textcolor=color.white, transp=0)
+
+alertcondition(bullishCondition, title="Bullish Pattern Alert", message="Bullish pattern detected between -1 and -2 sigma bands.")
+alertcondition(bearishCondition, title="Bearish Pattern Alert", message="Bearish pattern detected between 1 and 2 sigma bands.")
+
+
+//BBエクスパンションのアラート
+
+//エラーの参考リンク
+expantion_1(_up, _up1, _source, _len) =>
+    bool res1 = na
+    res1 := (_up1 + _up1 * _len) < _up and (ta.crossover(_source , _up) or (ta.crossover(_source[1] , _up1) and _source > _up and close > open))
+
+expantion_2(_dn, _dn1, _source, _len) =>
+    bool res2 = na
+    res2 := (_dn1 - _dn1 * _len) > _dn and (ta.crossunder(_source , _dn) or (ta.crossunder(_source[1] , _dn1) and _source < _dn and close < open))
+
+
+source2 = input(close, title="エクスパンション価格")
+Volatility = input.float(defval = 1.5, title = "バンドの広がりの大きさ", step = 0.1)
+subject_BB = input.string(defval = "band2", title="Bollinger Band expantion check", options = ["band1", "band2", "band3"])
+
+// string cur = na
+// int magnification = na
+// cur := syminfo.currency
+// magnification := cur == "JPY" ? 100 : 10000
+
+int magnification = 10000
+
+float subject_BB_up = na
+float subject_BB_dn = na
+float subject_BB_up_1 = na
+float subject_BB_dn_1 = na
+
+if subject_BB == "band1"
+    subject_BB_up := upper1
+    subject_BB_dn := lower1
+    subject_BB_up_1 := upper1[1]
+    subject_BB_dn_1 := lower1[1]
+else if subject_BB == "band2"
+    subject_BB_up := upper2
+    subject_BB_dn := lower2
+    subject_BB_up_1 := upper2[1]
+    subject_BB_dn_1 := lower2[1]
+else if subject_BB == "band3"
+    subject_BB_up := upper3
+    subject_BB_dn := lower3
+    subject_BB_up_1 := upper3[1]
+    subject_BB_dn_1 := lower3[1]
+
+
+high_expantion = expantion_1(subject_BB_up, subject_BB_up_1, source2, Volatility / magnification)
+down_expantion = expantion_2(subject_BB_dn, subject_BB_dn_1, source2, Volatility / magnification)
+
+plotshape(high_expantion, title="high_expantion", text="h_expan", color=color.green, location=location.belowbar, style=shape.labelup, size=size.tiny, textcolor=color.white, transp=0)
+plotshape(down_expantion, title="down_expantion", text="d_expan", color=color.red, location=location.abovebar, style=shape.labeldown, size=size.tiny, textcolor=color.white, transp=0)
+
+
+///////////////////////////////////////
+//SuperTrend
+
+// // Input Parameters
+// Periods = input.int(10, title="ATR Period")
+// Multiplier = input.float(3.0, title="ATR Multiplier", step=0.1)
+// showsignals = input.bool(true, title="Show Buy/Sell Signals?")
+
+
+// // ATR Calculation
+// atr = ta.atr(Periods)
+
+// // SuperTrend Calculation
+// up = alma - (Multiplier * atr)
+// up1 = ta.valuewhen(1, up, 0)
+// up := close[1] > up1 ? math.max(up, up1) : up
+// dn = alma + (Multiplier * atr)
+// dn1 = ta.valuewhen(1, dn, 0)
+// dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+
+// // Trend Determination
+// var int trend = na
+// trend := nz(trend[1], 1)
+// trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+
+// // Plotting
+// upPlot = plot(trend == 1 ? up : na, "Up Trend", color=color.green, linewidth=2, style=plot.style_linebr)
+// dnPlot = plot(trend == 1 ? na : dn, "Down Trend", color=color.red, linewidth=2, style=plot.style_linebr)
+
+// // 正しくラベルを生成するためのコード
+// if showsignals
+//     if trend == 1 and trend[1] == -1
+//         label.new(bar_index, high, "Buy", color=color.green, style=label.style_label_up, size=size.tiny, textcolor=color.white)
+//     if trend == -1 and trend[1] == 1
+//         label.new(bar_index, low, "Sell", color=color.red, style=label.style_label_down, size=size.tiny, textcolor=color.white)
+
+
+// // Alerts
+// alertcondition(trend == 1 and trend[1] == -1, "SuperTrend Buy", "SuperTrend Buy!")
+// alertcondition(trend == -1 and trend[1] == 1, "SuperTrend Sell", "SuperTrend Sell!")
+// alertcondition(trend != trend[1], "SuperTrend Direction Change", "SuperTrend has changed direction!")
+
+
+
+
+
+// パラメータ設定
+// length = 20
+// offset = 0.85
+// sigma = 6
+multiplier = 1.5
+atrPeriod = 10
+
+// ALMAの計算
+// alma = ta.alma(close, length, offset, sigma)
+
+// ATRの計算
+atr = ta.atr(atrPeriod)
+
+// SuperTrend Bandsの初期化
+var float FUB = na
+var float FLB = na
+var int trend = na
+
+// 上下バンドの計算
+upBand = alma + multiplier * atr
+downBand = alma - multiplier * atr
+
+// 初期トレンドの設定
+if na(trend[1])
+    trend := 1
+    FUB := upBand
+    FLB := downBand
+else
+    // 価格がFinal Upper Bandを上抜ける場合にトレンドを上昇に
+    if close > FUB[1]
+        trend := 1
+    // 価格がFinal Lower Bandを下抜ける場合にトレンドを下降に
+    else if close < FLB[1]
+        trend := -1
+
+    // 上昇トレンド時はUpper Bandの最大値を維持
+    if trend == 1
+        FUB := math.max(upBand, FUB[1])
+        FLB := downBand
+    // 下降トレンド時はLower Bandの最小値を維持
+    else
+        FLB := math.min(downBand, FLB[1])
+        FUB := upBand
+
+    // トレンドの更新
+    if close > FUB[1]
+        trend := 1  // ローソク足が上バンドを超えた場合は上昇トレンド
+    else if close < FLB[1]
+        trend := -1  // ローソク足が下バンドを下回った場合は下降トレンド
+    else
+        trend := trend[1]  // 変更なしの場合は前のトレンドを継続
+
+// SuperTrendの計算
+superTrend = trend == 1 ? FLB : FUB
+
+// SuperTrendの描画
+plot(superTrend, color=trend == 1 ? color.green : color.red, linewidth=4, title="SuperTrend")
+
+
+///////////////////////////////////////
+//マルチタイムフレームALMA
+
+
+
+//onoff
+ALMA_onoff_A_1 = input(true, title="ALMA_A_1 ON/OFF")
+// ALMA_onoff_A_2 = input(true, title="ALMA_A_2 ON/OFF")
+ALMA_onoff_A_3 = input(true, title="ALMA_A_3 ON/OFF")
+ALMA_onoff_A_4 = input(true, title="ALMA_A_4 ON/OFF")
+// ALMA_onoff_A_5 = input(true, title="ALMA_A_5 ON/OFF")
+ALMA_onoff_A_200 = input(true, title="ALMA_A_200 ON/OFF")
+ALMA_onoff_A_75 = input(true, title="ALMA_A_75 ON/OFF")
+ALMA_onoff_A_320 = input(true, title="ALMA_A_320 ON/OFF")
+ALMA_onoff_A_1200 = input(true, title="ALMA_A_1200 ON/OFF")
+
+// ALMA_onoff_B_1 = input(false, title="ALMA_B_1 ON/OFF")
+// ALMA_onoff_B_2 = input(false, title="ALMA_B_2 ON/OFF")
+// ALMA_onoff_B_3 = input(false, title="ALMA_B_3 ON/OFF")
+// ALMA_onoff_B_4 = input(false, title="ALMA_B_4 ON/OFF")
+// ALMA_onoff_B_5 = input(false, title="ALMA_B_5 ON/OFF")
+// ALMA_onoff_B_200 = input(true, title="ALMA_B_200 ON/OFF")
+
+ALMA_onoff_C_1 = input(false, title="ALMA_C_1 ON/OFF")
+// ALMA_onoff_C_2 = input(false, title="ALMA_C_2 ON/OFF")
+// ALMA_onoff_C_3 = input(false, title="ALMA_C_3 ON/OFF")
+// ALMA_onoff_C_4 = input(false, title="ALMA_C_4 ON/OFF")
+// ALMA_onoff_C_5 = input(false, title="ALMA_C_5 ON/OFF")
+ALMA_onoff_C_200 = input(true, title="ALMA_C_200 ON/OFF")
+
+ALMA_onoff_D_1 = input(false, title="ALMA_D_1 ON/OFF")
+// ALMA_onoff_D_2 = input(false, title="ALMA_D_2 ON/OFF")
+// ALMA_onoff_D_3 = input(false, title="ALMA_D_3 ON/OFF")
+// ALMA_onoff_D_4 = input(false, title="ALMA_D_4 ON/OFF")
+// ALMA_onoff_D_5 = input(false, title="ALMA_D_5 ON/OFF")
+ALMA_onoff_D_200 = input(true, title="ALMA_D_200 ON/OFF")
+
+
+//timeframe
+ALMA_TF_A = input.timeframe(title="Time Frame A", defval="")
+// ALMA_TF_B = input(title="Time Frame B", type=input.resolution, defval="15")
+ALMA_TF_C = input.timeframe(title="Time Frame C", defval="60")
+ALMA_TF_D = input.timeframe(title="Time Frame D", defval="1D")
+
+
+//period
+ALMA_period1 = input(title="ALMAperiod 1", defval=5)
+// ALMA_period2 = input(title="ALMAperiod 2", defval=8)
+ALMA_period3 = input(title="ALMAperiod 3", defval=13)
+ALMA_period4 = input(title="ALMAperiod 4", defval=21)
+// ALMA_period5 = input(title="ALMAperiod 5", defval=34)
+ALMA_period200 = input(title="ALMAperiod 200", defval=200)
+ALMA_period75 = input(title="ALMAperiod 75", defval=75)
+ALMA_period320 = input(title="ALMAperiod 320", defval=320)
+ALMA_period1200 = input(title="ALMAperiod 1200", defval=1200)
+
+// // 複数のALMAの期間を表示
+// alma5 = ta.alma(price, 5, 0.85, 6)
+// alma75 = ta.alma(price, 75, 0.85, 6)
+// alma320 = ta.alma(price, 320, 0.85, 6)
+// alma1200 = ta.alma(price, 1200, 0.85, 6)
+
+// plot(alma5, color=color.blue, linewidth = 2, title="ALMA 5")
+// plot(alma75, color=color.orange, linewidth = 2, title="ALMA 75")
+// plot(alma320, color=color.green, linewidth = 2, title="ALMA 320")
+// plot(alma1200, color=color.purple, linewidth = 4, title="ALMA 1200")
+
+
+
+//ALMA
+//5分足のALMA6種
+ALMA_A_1 = request.security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period1, 0.85, 6), barmerge.gaps_on)
+// ALMA_A_2 = security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period2, 0.85, 6), barmerge.gaps_on)
+ALMA_A_3 = request.security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period3, 0.85, 6), barmerge.gaps_on)
+ALMA_A_4 = request.security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period4, 0.85, 6), barmerge.gaps_on)
+// ALMA_A_5 = security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period5, 0.85, 6), barmerge.gaps_on)
+ALMA_A_200 = request.security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period200, 0.85, 6), barmerge.gaps_on)
+ALMA_A_75 = request.security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period75, 0.85, 6), barmerge.gaps_on)
+ALMA_A_320 = request.security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period320, 0.85, 6), barmerge.gaps_on)
+ALMA_A_1200 = request.security(syminfo.tickerid, ALMA_TF_A, ta.alma(price, ALMA_period1200, 0.85, 6), barmerge.gaps_on)
+
+// //15分足のALMA6種
+// ALMA_B_1 = security(syminfo.tickerid, ALMA_TF_B, ta.alma(price, ALMA_period1, 0.85, 6), barmerge.gaps_on)
+// ALMA_B_2 = security(syminfo.tickerid, ALMA_TF_B, ta.alma(price, ALMA_period2, 0.85, 6), barmerge.gaps_on)
+// ALMA_B_3 = security(syminfo.tickerid, ALMA_TF_B, ta.alma(price, ALMA_period3, 0.85, 6), barmerge.gaps_on)
+// ALMA_B_4 = security(syminfo.tickerid, ALMA_TF_B, ta.alma(price, ALMA_period4, 0.85, 6), barmerge.gaps_on)
+// ALMA_B_5 = security(syminfo.tickerid, ALMA_TF_B, ta.alma(price, ALMA_period5, 0.85, 6), barmerge.gaps_on)
+// ALMA_B_200 = security(syminfo.tickerid, ALMA_TF_B, ta.alma(price, ALMA_period200, 0.85, 6), barmerge.gaps_on)
+
+//1時間足のALMA6種
+ALMA_C_1 = request.security(syminfo.tickerid, ALMA_TF_C, ta.alma(price, ALMA_period1, 0.85, 6), barmerge.gaps_on)
+// ALMA_C_2 = security(syminfo.tickerid, ALMA_TF_C, ta.alma(price, ALMA_period2, 0.85, 6), barmerge.gaps_on)
+// ALMA_C_3 = security(syminfo.tickerid, ALMA_TF_C, ta.alma(price, ALMA_period3, 0.85, 6), barmerge.gaps_on)
+// ALMA_C_4 = security(syminfo.tickerid, ALMA_TF_C, ta.alma(price, ALMA_period4, 0.85, 6), barmerge.gaps_on)
+// ALMA_C_5 = security(syminfo.tickerid, ALMA_TF_C, ta.alma(price, ALMA_period5, 0.85, 6), barmerge.gaps_on)
+ALMA_C_200 = request.security(syminfo.tickerid, ALMA_TF_C, ta.alma(price, ALMA_period200, 0.85, 6), barmerge.gaps_on)
+
+//1日足のALMA6種
+ALMA_D_1 = request.security(syminfo.tickerid, ALMA_TF_D, ta.alma(price, ALMA_period1, 0.85, 6), barmerge.gaps_on)
+// ALMA_D_2 = security(syminfo.tickerid, ALMA_TF_D, ta.alma(price, ALMA_period2, 0.85, 6), barmerge.gaps_on)
+// ALMA_D_3 = security(syminfo.tickerid, ALMA_TF_D, ta.alma(price, ALMA_period3, 0.85, 6), barmerge.gaps_on)
+// ALMA_D_4 = security(syminfo.tickerid, ALMA_TF_D, ta.alma(price, ALMA_period4, 0.85, 6), barmerge.gaps_on)
+// ALMA_D_5 = security(syminfo.tickerid, ALMA_TF_D, ta.alma(price, ALMA_period5, 0.85, 6), barmerge.gaps_on)
+ALMA_D_200 = request.security(syminfo.tickerid, ALMA_TF_D, ta.alma(price, ALMA_period200, 0.85, 6), barmerge.gaps_on)
+
+
+
+trendUp_order_ALMA_A = ALMA_A_1 > ALMA_A_3 and ALMA_A_3 > ALMA_A_4 and ALMA_A_1 > ALMA_A_200
+
+// trendUp_order_ALMA_A = ALMA_A_1 > ALMA_A_2 and ALMA_A_2 > ALMA_A_3 and ALMA_A_3 > ALMA_A_4 and ALMA_A_4 > ALMA_A_5 and ALMA_A_1 > ALMA_A_200
+// trendUp_order_ALMA_B = ALMA_B_1 > ALMA_B_2 and ALMA_B_2 > ALMA_B_3 and ALMA_B_3 > ALMA_B_4 and ALMA_B_4 > ALMA_B_5 and ALMA_B_1 > ALMA_B_200
+// trendUp_order_ALMA_C = ALMA_C_1 > ALMA_C_2 and ALMA_C_2 > ALMA_C_3 and ALMA_C_3 > ALMA_C_4 and ALMA_C_4 > ALMA_C_5 and ALMA_C_1 > ALMA_C_200
+// trendUp_order_ALMA_D = ALMA_D_1 > ALMA_D_2 and ALMA_D_2 > ALMA_D_3 and ALMA_D_3 > ALMA_D_4 and ALMA_D_4 > ALMA_D_5 and ALMA_D_1 > ALMA_D_200
+
+trendDown_order_ALMA_A = ALMA_A_1 < ALMA_A_3 and ALMA_A_3 < ALMA_A_4 and ALMA_A_1 < ALMA_A_200
+
+// trendDown_order_ALMA_A = ALMA_A_1 < ALMA_A_2 and ALMA_A_2 < ALMA_A_3 and ALMA_A_3 < ALMA_A_4 and ALMA_A_4 < ALMA_A_5 and ALMA_A_1 < ALMA_A_200
+// trendDown_order_ALMA_B = ALMA_B_1 < ALMA_B_2 and ALMA_B_2 < ALMA_B_3 and ALMA_B_3 < ALMA_B_4 and ALMA_B_4 < ALMA_B_5 and ALMA_B_1 < ALMA_B_200
+// trendDown_order_ALMA_C = ALMA_C_1 < ALMA_C_2 and ALMA_C_2 < ALMA_C_3 and ALMA_C_3 < ALMA_C_4 and ALMA_C_4 < ALMA_C_5 and ALMA_C_1 < ALMA_C_200
+// trendDown_order_ALMA_D = ALMA_D_1 < ALMA_D_2 and ALMA_D_2 < ALMA_D_3 and ALMA_D_3 < ALMA_D_4 and ALMA_D_4 < ALMA_D_5 and ALMA_D_1 < ALMA_D_200
+
+
+ALMA_colorchange(cond1, cond2) =>
+    cond1 ? color.new(color.green, 10) : cond2 ? color.new(color.red, 10) : color.new(color.yellow, 0)
+
+
+//plot
+//5分足のALMA6種
+plot(ALMA_onoff_A_1 ? ALMA_A_1 : na, color=ALMA_colorchange(ALMA_A_1 < close and ALMA_A_1 > ALMA_A_1[1] , ALMA_A_1 > close and ALMA_A_1 < ALMA_A_1[1]), linewidth = 4, title="ALMA_A_1 ON/OFF")
+// plot(ALMA_onoff_A_2 ? ALMA_A_2 : na, color=ALMA_colorchange(ALMA_A_2 < close and trendUp_order_ALMA_A and ALMA_A_2 > ALMA_A_2[1] , ALMA_A_2 > close and trendDown_order_ALMA_A and ALMA_A_2 < ALMA_A_2[1]), linewidth = 2, title="ALMA_A_2 ON/OFF")
+plot(ALMA_onoff_A_3 ? ALMA_A_3 : na, color=ALMA_colorchange(ALMA_A_3 < close and ALMA_A_3 > ALMA_A_3[1] , ALMA_A_3 > close and ALMA_A_3 < ALMA_A_3[1]), linewidth = 2, title="ALMA_A_3 ON/OFF")
+// plot(ALMA_onoff_A_4 ? ALMA_A_4 : na, color=ALMA_colorchange(ALMA_A_4 < close and ALMA_A_4 > ALMA_A_4[1] , ALMA_A_4 > close and ALMA_A_4 < ALMA_A_4[1]), linewidth = 4, title="ALMA_A_4 ON/OFF")
+// plot(ALMA_onoff_A_5 ? ALMA_A_5 : na, color=ALMA_colorchange(ALMA_A_5 < close and trendUp_order_ALMA_A and ALMA_A_5 > ALMA_A_5[1] , ALMA_A_5 > close and trendDown_order_ALMA_A and ALMA_A_5 < ALMA_A_5[1]), linewidth = 4, title="ALMA_A_5 ON/OFF")
+plot(ALMA_onoff_A_200 ? ALMA_A_200 : na, color=ALMA_colorchange(ALMA_A_200 < close and ALMA_A_200 > ALMA_A_200[1] , ALMA_A_200 > close and ALMA_A_200 < ALMA_A_200[1]), linewidth = 4, title="ALMA_A_200 ON/OFF")
+
+p1 = plot(ALMA_onoff_A_75 ? ALMA_A_75 : na, color=ALMA_colorchange(ALMA_A_75 < close and ALMA_A_75 > ALMA_A_75[1] , ALMA_A_75 > close and ALMA_A_75 < ALMA_A_75[1]), linewidth = 4, title="ALMA_A_75 ON/OFF")
+p2 = plot(ALMA_onoff_A_320 ? ALMA_A_320 : na, color=ALMA_colorchange(ALMA_A_320 < close and ALMA_A_320 > ALMA_A_320[1] , ALMA_A_320 > close and ALMA_A_320 < ALMA_A_320[1]), linewidth = 4, title="ALMA_A_320 ON/OFF")
+plot(ALMA_onoff_A_1200 ? ALMA_A_1200 : na, color=ALMA_colorchange(ALMA_A_1200 < close and ALMA_A_1200 > ALMA_A_1200[1] , ALMA_A_1200 > close and ALMA_A_1200 < ALMA_A_1200[1]), linewidth = 4, title="ALMA_A_1200 ON/OFF")
+
+// ALMA75と320間の背景色の塗りつぶし
+// 320MAと75MAの間が価格の平均値です。
+// 平均よりも下に位置している時はロング、平均よりも上に位置している時はショート。
+// 価格は平均値に戻る習性ある為それを活用する事。
+// ついでに、1200MAが進行方向（エントリーした方向）にあると尚良き
+// MA1200線にローソク足が戻ってくる修正があるため
+fill(p1, p2, color=color.new(color.blue, 80), title="Fill between EMAs")
+
+//15分足のALMA6種
+// plot(ALMA_onoff_B_1 ? ALMA_B_1 : na, color=ALMA_colorchange(ALMA_B_1 < close and trendUp_order_ALMA_B and ALMA_B_1 > ALMA_B_1[1] , ALMA_B_1 > close and trendDown_order_ALMA_B and ALMA_B_1 < ALMA_B_1[1]), linewidth = 1, title="ALMA_B_1 ON/OFF")
+// plot(ALMA_onoff_B_2 ? ALMA_B_2 : na, color=ALMA_colorchange(ALMA_B_2 < close and trendUp_order_ALMA_B and ALMA_B_2 > ALMA_B_2[1] , ALMA_B_2 > close and trendDown_order_ALMA_B and ALMA_B_2 < ALMA_B_2[1]), linewidth = 2, title="ALMA_B_2 ON/OFF")
+// plot(ALMA_onoff_B_3 ? ALMA_B_3 : na, color=ALMA_colorchange(ALMA_B_3 < close and trendUp_order_ALMA_B and ALMA_B_3 > ALMA_B_3[1] , ALMA_B_3 > close and trendDown_order_ALMA_B and ALMA_B_3 < ALMA_B_3[1]), linewidth = 3, title="ALMA_B_3 ON/OFF")
+// plot(ALMA_onoff_B_4 ? ALMA_B_4 : na, color=ALMA_colorchange(ALMA_B_4 < close and trendUp_order_ALMA_B and ALMA_B_4 > ALMA_B_4[1] , ALMA_B_4 > close and trendDown_order_ALMA_B and ALMA_B_4 < ALMA_B_4[1]), linewidth = 4, title="ALMA_B_4 ON/OFF")
+// plot(ALMA_onoff_B_5 ? ALMA_B_5 : na, color=ALMA_colorchange(ALMA_B_5 < close and trendUp_order_ALMA_B and ALMA_B_5 > ALMA_B_5[1] , ALMA_B_5 > close and trendDown_order_ALMA_B and ALMA_B_5 < ALMA_B_5[1]), linewidth = 4, title="ALMA_B_5 ON/OFF")
+// plot(ALMA_onoff_B_200 ? ALMA_B_200 : na, color=ALMA_colorchange(ALMA_B_200 < close and trendUp_order_ALMA_B and ALMA_B_200 > ALMA_B_200[1] , ALMA_B_200 > close and trendDown_order_ALMA_B and ALMA_B_200 < ALMA_B_200[1]), linewidth = 4, title="ALMA_B_200 ON/OFF")
+
+//1時間足のALMA6種
+plot(ALMA_onoff_C_1 ? ALMA_C_1 : na, color=ALMA_colorchange(ALMA_C_1 < close and ALMA_C_1 > ALMA_C_1[1] , ALMA_C_1 > close and ALMA_C_1 < ALMA_C_1[1]), linewidth = 4, title="ALMA_C_1 ON/OFF")
+// plot(ALMA_onoff_C_2 ? ALMA_C_2 : na, color=ALMA_colorchange(ALMA_C_2 < close and trendUp_order_ALMA_C and ALMA_C_2 > ALMA_C_2[1] , ALMA_C_2 > close and trendDown_order_ALMA_C and ALMA_C_2 < ALMA_C_2[1]), linewidth = 2, title="ALMA_C_2 ON/OFF")
+// plot(ALMA_onoff_C_3 ? ALMA_C_3 : na, color=ALMA_colorchange(ALMA_C_3 < close and trendUp_order_ALMA_C and ALMA_C_3 > ALMA_C_3[1] , ALMA_C_3 > close and trendDown_order_ALMA_C and ALMA_C_3 < ALMA_C_3[1]), linewidth = 3, title="ALMA_C_3 ON/OFF")
+// plot(ALMA_onoff_C_4 ? ALMA_C_4 : na, color=ALMA_colorchange(ALMA_C_4 < close and trendUp_order_ALMA_C and ALMA_C_4 > ALMA_C_4[1] , ALMA_C_4 > close and trendDown_order_ALMA_C and ALMA_C_4 < ALMA_C_4[1]), linewidth = 4, title="ALMA_C_4 ON/OFF")
+// plot(ALMA_onoff_C_5 ? ALMA_C_5 : na, color=ALMA_colorchange(ALMA_C_5 < close and trendUp_order_ALMA_C and ALMA_C_5 > ALMA_C_5[1] , ALMA_C_5 > close and trendDown_order_ALMA_C and ALMA_C_5 < ALMA_C_5[1]), linewidth = 4, title="ALMA_C_5 ON/OFF")
+plot(ALMA_onoff_C_200 ? ALMA_C_200 : na, color=ALMA_colorchange(ALMA_C_200 < close and ALMA_C_200 > ALMA_C_200[1] , ALMA_C_200 > close and ALMA_C_200 < ALMA_C_200[1]), linewidth = 4, title="ALMA_C_200 ON/OFF")
+
+//1日足のALMA6種
+plot(ALMA_onoff_D_1 ? ALMA_D_1 : na, color=ALMA_colorchange(ALMA_D_1 < close and ALMA_D_1 > ALMA_D_1[1] , ALMA_D_1 > close and ALMA_D_1 < ALMA_D_1[1]), linewidth = 4, title="ALMA_D_1 ON/OFF")
+// plot(ALMA_onoff_D_2 ? ALMA_D_2 : na, color=ALMA_colorchange(ALMA_D_2 < close and trendUp_order_ALMA_D and ALMA_D_2 > ALMA_D_2[1] , ALMA_D_2 > close and trendDown_order_ALMA_D and ALMA_D_2 < ALMA_D_2[1]), linewidth = 2, title="ALMA_D_2 ON/OFF")
+// plot(ALMA_onoff_D_3 ? ALMA_D_3 : na, color=ALMA_colorchange(ALMA_D_3 < close and trendUp_order_ALMA_D and ALMA_D_3 > ALMA_D_3[1] , ALMA_D_3 > close and trendDown_order_ALMA_D and ALMA_D_3 < ALMA_D_3[1]), linewidth = 3, title="ALMA_D_3 ON/OFF")
+// plot(ALMA_onoff_D_4 ? ALMA_D_4 : na, color=ALMA_colorchange(ALMA_D_4 < close and trendUp_order_ALMA_D and ALMA_D_4 > ALMA_D_4[1] , ALMA_D_4 > close and trendDown_order_ALMA_D and ALMA_D_4 < ALMA_D_4[1]), linewidth = 4, title="ALMA_D_4 ON/OFF")
+// plot(ALMA_onoff_D_5 ? ALMA_D_5 : na, color=ALMA_colorchange(ALMA_D_5 < close and trendUp_order_ALMA_D and ALMA_D_5 > ALMA_D_5[1] , ALMA_D_5 > close and trendDown_order_ALMA_D and ALMA_D_5 < ALMA_D_5[1]), linewidth = 4, title="ALMA_D_5 ON/OFF")
+plot(ALMA_onoff_D_200 ? ALMA_D_200 : na, color=ALMA_colorchange(ALMA_D_200 < close and ALMA_D_200 > ALMA_D_200[1] , ALMA_D_200 > close and ALMA_D_200 < ALMA_D_200[1]), linewidth = 4, title="ALMA_D_200 ON/OFF")
+
+
+
+
+//移動平均の横にテキストを書く
+//5分足
+var ALMA_A_1_Label = label.new(x = bar_index, y = ALMA_A_1, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "Xm5P")
+label.set_xy(ALMA_A_1_Label, x = bar_index, y = ALMA_A_1)
+
+// var ALMA_A_2_Label = label.new(x = bar_index, y = ALMA_A_2, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "5m8P")
+// label.set_xy(ALMA_A_2_Label, x = bar_index, y = ALMA_A_2)
+
+var ALMA_A_3_Label = label.new(x = bar_index, y = ALMA_A_3, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "Xm13P")
+label.set_xy(ALMA_A_3_Label, x = bar_index, y = ALMA_A_3)
+
+// var ALMA_A_4_Label = label.new(x = bar_index, y = ALMA_A_4, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "5m21P")
+// label.set_xy(ALMA_A_4_Label, x = bar_index, y = ALMA_A_4)
+
+// var ALMA_A_5_Label = label.new(x = bar_index, y = ALMA_A_5, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "5m34P")
+// label.set_xy(ALMA_A_5_Label, x = bar_index, y = ALMA_A_5)
+
+var ALMA_A_200_Label = label.new(x = bar_index, y = ALMA_A_200, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "Xm200P")
+label.set_xy(ALMA_A_200_Label, x = bar_index, y = ALMA_A_200)
+
+var ALMA_A_75_Label = label.new(x = bar_index, y = ALMA_A_75, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "Xm75P")
+label.set_xy(ALMA_A_75_Label, x = bar_index, y = ALMA_A_75)
+
+var ALMA_A_320_Label = label.new(x = bar_index, y = ALMA_A_320, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "Xm320P")
+label.set_xy(ALMA_A_320_Label, x = bar_index, y = ALMA_A_320)
+
+var ALMA_A_1200_Label = label.new(x = bar_index, y = ALMA_A_1200, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "Xm1200P")
+label.set_xy(ALMA_A_1200_Label, x = bar_index, y = ALMA_A_1200)
+
+
+// //15分足
+// var ALMA_B_1_Label = label.new(x = bar_index, y = ALMA_B_1, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "15m5P")
+// label.set_xy(ALMA_B_1_Label, x = bar_index, y = ALMA_B_1)
+
+// var ALMA_B_2_Label = label.new(x = bar_index, y = ALMA_B_2, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "15m8P")
+// label.set_xy(ALMA_B_2_Label, x = bar_index, y = ALMA_B_2)
+
+// var ALMA_B_3_Label = label.new(x = bar_index, y = ALMA_B_3, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "15m13P")
+// label.set_xy(ALMA_B_3_Label, x = bar_index, y = ALMA_B_3)
+
+// var ALMA_B_4_Label = label.new(x = bar_index, y = ALMA_B_4, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "15m21P")
+// label.set_xy(ALMA_B_4_Label, x = bar_index, y = ALMA_B_4)
+
+// var ALMA_B_5_Label = label.new(x = bar_index, y = ALMA_B_5, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "15m34P")
+// label.set_xy(ALMA_B_5_Label, x = bar_index, y = ALMA_B_5)
+
+// var ALMA_B_200_Label = label.new(x = bar_index, y = ALMA_B_200, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "15m200P")
+// label.set_xy(ALMA_B_200_Label, x = bar_index, y = ALMA_B_200)
+
+
+//1時間足
+var ALMA_C_1_Label = label.new(x = bar_index, y = ALMA_C_1, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "60m5P")
+label.set_xy(ALMA_C_1_Label, x = bar_index, y = ALMA_C_1)
+
+// var ALMA_C_2_Label = label.new(x = bar_index, y = ALMA_C_2, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "60m8P")
+// label.set_xy(ALMA_C_2_Label, x = bar_index, y = ALMA_C_2)
+
+// var ALMA_C_3_Label = label.new(x = bar_index, y = ALMA_C_3, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "60m13P")
+// label.set_xy(ALMA_C_3_Label, x = bar_index, y = ALMA_C_3)
+
+// var ALMA_C_4_Label = label.new(x = bar_index, y = ALMA_C_4, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "60m21P")
+// label.set_xy(ALMA_C_4_Label, x = bar_index, y = ALMA_C_4)
+
+// var ALMA_C_5_Label = label.new(x = bar_index, y = ALMA_C_5, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "60m34P")
+// label.set_xy(ALMA_C_5_Label, x = bar_index, y = ALMA_C_5)
+
+var ALMA_C_200_Label = label.new(x = bar_index, y = ALMA_C_200, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "60m200P")
+label.set_xy(ALMA_C_200_Label, x = bar_index, y = ALMA_C_200)
+
+
+//1日足
+var ALMA_D_1_Label = label.new(x = bar_index, y = ALMA_D_1, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "1d5P")
+label.set_xy(ALMA_D_1_Label, x = bar_index, y = ALMA_D_1)
+
+// var ALMA_D_2_Label = label.new(x = bar_index, y = ALMA_D_2, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "1d8P")
+// label.set_xy(ALMA_D_2_Label, x = bar_index, y = ALMA_D_2)
+
+// var ALMA_D_3_Label = label.new(x = bar_index, y = ALMA_D_3, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "1d13P")
+// label.set_xy(ALMA_D_3_Label, x = bar_index, y = ALMA_D_3)
+
+// var ALMA_D_4_Label = label.new(x = bar_index, y = ALMA_D_4, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "1d21P")
+// label.set_xy(ALMA_D_4_Label, x = bar_index, y = ALMA_D_4)
+
+// var ALMA_D_5_Label = label.new(x = bar_index, y = ALMA_D_5, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "1d34P")
+// label.set_xy(ALMA_D_5_Label, x = bar_index, y = ALMA_D_5)
+
+var ALMA_D_200_Label = label.new(x = bar_index, y = ALMA_D_200, style = label.style_label_left, color = color.rgb(0, 0, 0, 100), textcolor = color.black, text = "1d200P")
+label.set_xy(ALMA_D_200_Label, x = bar_index, y = ALMA_D_200)
+
+
+
+///////////////////////////////////////
+// DX method candle search alert
+//トレンド判定ルール ALMA用
+C_DownTrend_ALMA_ST = true
+C_UpTrend_ALMA_ST = true
+
+C_DownTrend_ALMA_ST := (trendDown_order_ALMA_A and ALMA_A_1 > close) and trend == -1
+C_UpTrend_ALMA_ST := (trendUp_order_ALMA_A and ALMA_A_1 < close) and trend == 1
+
+
+bool down_trend_condition = na
+bool up_trend_condition = na
+
+down_trend_condition := C_DownTrend_ALMA_ST
+up_trend_condition := C_UpTrend_ALMA_ST
+
+// ローソク足の形判定
+
+C_Len = 8  // ema depth for bodyAvg
+C_ShadowPercent_DX = 3.0  // size of shadows
+C_ShadowPercent = 5.0  // size of shadows
+C_ShadowEqualsPercent = 100.0
+C_DojiBodyPercent = 5.0
+C_Factor = 2.0  // shows the number of times the shadow dominates the candlestick body
+
+//VARIABLES
+
+C_BodyHi = math.max(close, open)
+C_BodyLo = math.min(close, open)
+C_Body = C_BodyHi - C_BodyLo //実体の大きさ
+C_BodyAvg = ta.ema(C_Body, C_Len) //過去~本分の実体の大きさの平均。ただし直前の足の大きさを優先する
+C_SmallBody = C_Body < C_BodyAvg //実体の大きさが平均より小さいもの
+C_LongBody = C_Body > C_BodyAvg //実体の大きさが平均より大きいもの
+C_UpShadow = high - C_BodyHi //上ヒゲの大きさ
+C_DnShadow = C_BodyLo - low //下ヒゲの大きさ
+C_HasUpShadow = C_UpShadow > C_ShadowPercent / 100 * C_Body
+C_HasDnShadow = C_DnShadow > C_ShadowPercent / 100 * C_Body
+C_WhiteBody = open < close //陽線ならtrue
+C_BlackBody = open > close //陰線ならtrue
+C_Range = high - low //ヒゲも含めたローソク足の大きさ
+C_IsInsideBar = C_BodyHi[1] > C_BodyHi and C_BodyLo[1] < C_BodyLo
+C_BodyMiddle = C_Body / 2 + C_BodyLo
+C_ShadowEquals = C_UpShadow == C_DnShadow or math.abs(C_UpShadow - C_DnShadow) / C_DnShadow * 100 < C_ShadowEqualsPercent and math.abs(C_DnShadow - C_UpShadow) / C_UpShadow * 100 < C_ShadowEqualsPercent
+C_IsDojiBody = C_Range > 0 and C_Body <= C_Range * C_DojiBodyPercent / 100
+C_Doji = C_IsDojiBody and C_ShadowEquals //コマ足
+
+//ラベルの位置
+patternLabelPosLow = low - ta.atr(30) * 0.4
+patternLabelPosHigh = high + ta.atr(30) * 0.4
+
+
+//陰のこま足
+C_SpinningTopBlackPercent = 34.0
+C_IsSpinningTop = C_DnShadow >= C_Range / 100 * C_SpinningTopBlackPercent and C_UpShadow >= C_Range / 100 * C_SpinningTopBlackPercent and not C_IsDojiBody
+C_SpinningTopBlack = C_IsSpinningTop and C_BlackBody
+
+//陽のこま足
+C_SpinningTopWhitePercent = 34.0
+C_IsSpinningTopWhite = C_DnShadow >= C_Range / 100 * C_SpinningTopWhitePercent and C_UpShadow >= C_Range / 100 * C_SpinningTopWhitePercent and not C_IsDojiBody
+C_SpinningTopWhite = C_IsSpinningTopWhite and C_WhiteBody
+
+
+//ヒゲが長すぎるローソク足
+C_bigShadow = (C_UpShadow + C_DnShadow) - (C_Body * C_ShadowPercent_DX) > 0
+
+//逆足が大きすぎる陰線
+C_bigBlackBody = C_Body > C_BodyAvg * C_Factor and C_BlackBody
+
+//逆足が大きすぎる陽線
+C_bigWhiteBody = C_Body > C_BodyAvg * C_Factor and C_WhiteBody
+
+// 逆足が5本以上(陰線)
+C_Blackchain = C_BlackBody[4] and C_BlackBody[3] and C_BlackBody[2] and C_BlackBody[1] and C_BlackBody
+
+// 逆足が5本以上(陽線)
+C_Whitechain = C_WhiteBody[4] and C_WhiteBody[3] and C_WhiteBody[2] and C_WhiteBody[1] and C_WhiteBody
+
+
+// ALMA BBの中心線を越えるくらい強い
+// len = input(12, title = "EMA_BB 期間")
+// srcBB = input(ohlc4, title = "EMA_BB source")
+// e = ta.ema(srcBB,len)
+
+// C_BBcrossunder = C_BlackBody and close < e / 1.0001
+// C_BBcrossover = C_WhiteBody and close > e * 1.0001
+
+C_BBcrossunder = C_BlackBody and close < alma / 1.0001
+C_BBcrossover = C_WhiteBody and close > alma * 1.0001
+
+
+high_entry_condition = (C_BlackBody and not (C_SpinningTopBlack or C_bigShadow or C_bigBlackBody or C_BBcrossunder or C_Blackchain)) and (C_BlackBody[1] and not (C_SpinningTopBlack or C_bigShadow or C_bigBlackBody or C_BBcrossunder))
+
+// plotshape(up_trend_condition and high_entry_condition, title="high_entry_condition", text="DX_high", color=color.lime, location=location.belowbar, style=shape.labelup, size=size.tiny, textcolor=color.white, transp=0)
+if up_trend_condition and high_entry_condition
+    var DXentry_check = '1.逆足、確認足共にコマ足のような実体がほぼないはっきりしない足が混ざってたらダメ。\n2.逆足、確認足共に実体はあっても、それ以上にヒゲが長いローソク足が続いた場合もエントリーしない方が無難\n3.トレンド逆足（陰線）が大きすぎたりしてもダメ。トレンド転換の可能性がある。\n4.トレンド逆足（陰線）が5本以上続いたら、トレンドとは逆の勢いが短期的に強いので、エントリーしない方がいい\n5.トレンド逆足（陰線）がBBの中心線を越えるくらい強いとエントリーをやめる\n6.確認足（陽線）が一気に大きくなって、BBのバンドウォーク時に張り付いた場合のエントリーは避けたほうがいい\n7.当日の最高値、最安値付近の場合はエントリーしないほうがいい（おそらく１時間足や日足といった上位足のBBやレジサポが近い）\n8.確認足（陽線）はその前の足より実体が大きいこと。1つ前のトレンド逆足を包むくらいの大きい足（包み足）ならエントリーOK\n9.確認足（陽線）のヒゲの形が上方向に長い場合はエントリーしないほうがいい'
+    label.new(bar_index, patternLabelPosLow, text='DX_high', style=label.style_label_up, color=color.lime, textcolor=color.white, tooltip=DXentry_check)
+
+alertcondition(up_trend_condition and high_entry_condition, title= "high_entry_condition", message= "DX_highエントリー確認")
+
+
+low_entry_condition = (C_WhiteBody and not (C_SpinningTopWhite or C_bigShadow or C_bigWhiteBody or C_BBcrossover or C_Whitechain)) and (C_WhiteBody[1] and not (C_SpinningTopWhite or C_bigShadow or C_bigWhiteBody or C_BBcrossover))
+
+// plotshape(down_trend_condition and low_entry_condition, title="low_entry_condition", text="DX_low", color=color.red, location=location.abovebar, style=shape.labeldown, size=size.tiny, textcolor=color.white, transp=0)
+if down_trend_condition and low_entry_condition
+    var DXentry_check = '1.逆足、確認足共にコマ足のような実体がほぼないはっきりしない足が混ざってたらダメ。\n2.逆足、確認足共に実体はあっても、それ以上にヒゲが長いローソク足が続いた場合もエントリーしない方が無難\n3.トレンド逆足（陽線）が大きすぎたりしてもダメ。トレンド転換の可能性がある。\n4.トレンド逆足（陽線）が5本以上続いたら、トレンドとは逆の勢いが短期的に強いので、エントリーしない方がいい\n5.トレンド逆足（陽線）がBBの中心線を越えるくらい強いとエントリーをやめる\n6.確認足（陰線）が一気に大きくなって、BBのバンドウォーク時に張り付いた場合のエントリーは避けたほうがいい\n7.当日の最高値、最安値付近の場合はエントリーしないほうがいい（おそらく１時間足や日足といった上位足のBBやレジサポが近い）\n8.確認足（陰線）はその前の足より実体が大きいこと。1つ前のトレンド逆足を包むくらいの大きい足（包み足）ならエントリーOK\n9.確認足（陰線）のヒゲの形が上方向に長い場合はエントリーしないほうがいい'
+    label.new(bar_index, patternLabelPosHigh, text='DX_low', style=label.style_label_down, color=color.red, textcolor=color.white, tooltip=DXentry_check)
+
+alertcondition(down_trend_condition and low_entry_condition, title= "low_entry_condition", message= "DX_lowエントリー確認")

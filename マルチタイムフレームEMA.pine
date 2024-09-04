@@ -1,0 +1,97 @@
+//@version=4
+
+study("マルチタイムフレームEMA", shorttitle="MTF-EMA", overlay=true)
+
+//参考URL
+// https://milli-pro.com/pine-script-mtfsma
+
+// https://itsakura.com/html-color-codes
+
+
+//onoff
+onoff_A_1  = input(true, title="EMA_A_1 ON/OFF")
+onoff_A_2  = input(true, title="EMA_A_2 ON/OFF")
+onoff_A_3  = input(true, title="EMA_A_3 ON/OFF")
+onoff_A_4  = input(true, title="EMA_A_4 ON/OFF")
+
+onoff_B_1  = input(true, title="EMA_B_1 ON/OFF")
+onoff_B_2  = input(true, title="EMA_B_2 ON/OFF")
+onoff_B_3  = input(true, title="EMA_B_3 ON/OFF")
+onoff_B_4  = input(true, title="EMA_B_4 ON/OFF")
+
+onoff_C_1  = input(true, title="EMA_C_1 ON/OFF")
+onoff_C_2  = input(true, title="EMA_C_2 ON/OFF")
+onoff_C_3  = input(true, title="EMA_C_3 ON/OFF")
+onoff_C_4  = input(true, title="EMA_C_4 ON/OFF")
+
+onoff_D_1  = input(true, title="EMA_D_1 ON/OFF")
+onoff_D_2  = input(true, title="EMA_D_2 ON/OFF")
+onoff_D_3  = input(true, title="EMA_D_3 ON/OFF")
+onoff_D_4  = input(true, title="EMA_D_4 ON/OFF")
+
+
+//timeframe
+time_f_A = input(title="Time Frame A", type=input.resolution, defval="5")
+time_f_B = input(title="Time Frame B", type=input.resolution, defval="15")
+time_f_C = input(title="Time Frame C", type=input.resolution, defval="30")
+time_f_D = input(title="Time Frame D", type=input.resolution, defval="60")
+
+
+//period
+period_1 = input(title="Time Frame A period", defval=5)
+period_2 = input(title="Time Frame B period", defval=8)
+period_3 = input(title="Time Frame C period", defval=13)
+period_4 = input(title="Time Frame D period", defval=200)
+
+
+
+//EMA
+//5分足のEMA４種
+EMA_A_1 = security(syminfo.tickerid, time_f_A, ema(close, period_1), barmerge.gaps_on)
+EMA_A_2 = security(syminfo.tickerid, time_f_A, ema(close, period_2), barmerge.gaps_on)
+EMA_A_3 = security(syminfo.tickerid, time_f_A, ema(close, period_3), barmerge.gaps_on)
+EMA_A_4 = security(syminfo.tickerid, time_f_A, ema(close, period_4), barmerge.gaps_on)
+
+//15分足のEMA４種
+EMA_B_1 = security(syminfo.tickerid, time_f_B, ema(close, period_1), barmerge.gaps_on)
+EMA_B_2 = security(syminfo.tickerid, time_f_B, ema(close, period_2), barmerge.gaps_on)
+EMA_B_3 = security(syminfo.tickerid, time_f_B, ema(close, period_3), barmerge.gaps_on)
+EMA_B_4 = security(syminfo.tickerid, time_f_B, ema(close, period_4), barmerge.gaps_on)
+
+//30分足のEMA４種
+EMA_C_1 = security(syminfo.tickerid, time_f_C, ema(close, period_1), barmerge.gaps_on)
+EMA_C_2 = security(syminfo.tickerid, time_f_C, ema(close, period_2), barmerge.gaps_on)
+EMA_C_3 = security(syminfo.tickerid, time_f_C, ema(close, period_3), barmerge.gaps_on)
+EMA_C_4 = security(syminfo.tickerid, time_f_C, ema(close, period_4), barmerge.gaps_on)
+
+//1時間足のEMA４種
+EMA_D_1 = security(syminfo.tickerid, time_f_D, ema(close, period_1), barmerge.gaps_on)
+EMA_D_2 = security(syminfo.tickerid, time_f_D, ema(close, period_2), barmerge.gaps_on)
+EMA_D_3 = security(syminfo.tickerid, time_f_D, ema(close, period_3), barmerge.gaps_on)
+EMA_D_4 = security(syminfo.tickerid, time_f_D, ema(close, period_4), barmerge.gaps_on)
+
+
+//plot
+//5分足のEMA４種  赤系の色
+plot(onoff_A_1 ? EMA_A_1 : na, color=color.rgb(255,160,122), title="EMA_A_1")
+plot(onoff_A_2 ? EMA_A_2 : na, color=color.rgb(250,128,114), title="EMA_A_2")
+plot(onoff_A_3 ? EMA_A_3 : na, color=color.rgb(220,20,60), title="EMA_A_3")
+plot(onoff_A_4 ? EMA_A_4 : na, color=color.rgb(255,0,0), title="EMA_A_4")
+
+//15分足のEMA４種　緑系の色
+plot(onoff_B_1 ? EMA_B_1 : na, color=color.rgb(0,255,0), title="EMA_B_1")
+plot(onoff_B_2 ? EMA_B_2 : na, color=color.rgb(144,238,144), title="EMA_B_2")
+plot(onoff_B_3 ? EMA_B_3 : na, color=color.rgb(60,179,113), title="EMA_B_3")
+plot(onoff_B_4 ? EMA_B_4 : na, color=color.rgb(0,100,0), title="EMA_B_4")
+
+//30分足のEMA４種  青系の色
+plot(onoff_C_1 ? EMA_C_1 : na, color=color.rgb(0,255,255), title="EMA_C_1")
+plot(onoff_C_2 ? EMA_C_2 : na, color=color.rgb(0,206,209), title="EMA_C_2")
+plot(onoff_C_3 ? EMA_C_3 : na, color=color.rgb(30,144,255), title="EMA_C_3")
+plot(onoff_C_4 ? EMA_C_4 : na, color=color.rgb(0,0,205), title="EMA_C_4")
+
+//1時間足のEMA４種　紫系の色
+plot(onoff_D_1 ? EMA_D_1 : na, color=color.rgb(255,0,255), title="EMA_D_1")
+plot(onoff_D_2 ? EMA_D_2 : na, color=color.rgb(138,43,226), title="EMA_D_2")
+plot(onoff_D_3 ? EMA_D_3 : na, color=color.rgb(128,0,128), title="EMA_D_3")
+plot(onoff_D_4 ? EMA_D_4 : na, color=color.rgb(75,0,130), title="EMA_D_4")

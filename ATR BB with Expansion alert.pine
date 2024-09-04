@@ -1,0 +1,110 @@
+//@version=5
+// indicator(shorttitle="ATR BB with Expansion alert", title="ATR Bollinger with Expansion alert", overlay=false, timeframe="", timeframe_gaps=true)
+indicator(shorttitle="ATR BB with Expansion alert", title="ATR Bollinger with Expansion alert", overlay=false)
+
+// Input variables
+// ATR（Average True Range）の計算期間をユーザーが入力できるようにしています。デフォルト値は10です。
+ATR_length = input.int(title="ATR 期間", defval=10, minval=1)
+// ボリンジャーバンドの計算期間をユーザーが入力できるようにしています。デフォルト値は20です。
+BB_length = input.int(title="BB 期間", defval=20, minval=1)
+// ボリンジャーバンドの標準偏差の係数をユーザーが入力できるようにしています。デフォルト値は2.0です。
+atrbbdev = input.float(title="StdDev", defval=2.0, step=0.1, minval=0.001, maxval=50)
+// バンド幅の拡張比率をユーザーが入力できるようにしています。デフォルト値は1.15です。
+expansion_ratio = input.float(title="Expansion Ratio", defval=1.15, step=0.01, minval=1.0)
+
+// ATR
+// ATRを計算します。この値はボリンジャーバンドの基準として使われます。
+atr = ta.atr(ATR_length)
+
+// Bollinger Bands
+// ATRを基準にしてボリンジャーバンドを計算します。これにより中央線（middle）、上側バンド（upper）、下側バンド（lower）の値が得られます。
+[middle, upper, lower] = ta.bb(atr, BB_length, atrbbdev)
+
+// Plot Bollinger Bands and ATR
+plot(middle, "Middle", color=#FF6D00)
+plot(upper, "Upper", color=#2962FF)
+plot(lower, "Lower", color=#2962FF)
+plot(atr, title="ATR", color=color.new(#B71C1C, 0))
+
+// Calculate band width and previous band width
+// 現在のバンド幅を計算します。
+bb_width = upper - lower
+// 一つ前のバーでのバンド幅を取得します。
+prev_bb_width = bb_width[1]
+
+
+// Expansion Condition
+// エクスパンションの条件を定義します。ATRが上側バンドを超え、かつ現在のバンド幅が前のバンド幅の特定の倍率以上である場合に真（true）となります。
+// ATRが低水準で推移し、ATRに表示したボリンジャーバンドがスクイーズを形成
+// ATRボリンジャーがエクスパンションして、ATRが上方向に上昇。同時に、チャネルやミニレンジをローソク足がブレイクアウトしたら、ブレイク方向にエントリーします
+
+// ・上向きのバンドウォーク
+// ATRが＋2σバンドにそって上昇しており、ボラティリティが高くなっていることを示しています。大量の買い注文(または売り注文)が活発に入っており、トレンドの発生やトレンド継続の可能性があります。
+
+
+// ATRの現在値が前日より高いかつ前日がupperを超えていたかをチェック
+atr_breaking_higher = atr > atr[1] and atr[1] > upper[1]
+
+length_past_cal = input.int(title="過去○本分のATR", step=1, defval=100, minval=1)
+// 過去○本分のATRの平均値を計算
+atr_avg = ta.ema(atr, length_past_cal)
+// 過去○本分のATRの最低値を計算
+atr_lowest = ta.lowest(atr, length_past_cal)
+// 過去○本分のATRの最高値を計算
+atr_highest = ta.highest(atr, length_past_cal)
+
+// ATRがボリンジャーバンドの範囲内にあるかどうかを判断
+atr_within_bb = atr > lower and atr < upper
+// バンド幅が広がりすぎてないか判断
+bb_width_retention = bb_width < prev_bb_width * 1.1 
+// ローソク足2本前から過去◯本分のATRが過去100本分の平均値未満かどうかをチェック
+length_past_cal_2 = input.int(title="2本前から過去◯本分のATR", step=1, defval=20, minval=1)
+
+atr_consistently_low = true
+for i = 2 to length_past_cal_2
+    if atr[i] >= atr_avg[i] or not atr_within_bb[i] or not bb_width_retention[i]
+        atr_consistently_low := false
+
+
+// エクスパンションブレイクアウト条件
+expansion_trend_outbreak = atr > upper and bb_width > prev_bb_width * expansion_ratio and atr_breaking_higher and atr_consistently_low
+
+// Plotting labels for expansions
+// エクスパンションが発生した場合に、それぞれの条件に応じてラベルをチャートに表示します。
+if expansion_trend_outbreak
+    label.new(x=bar_index, y=atr_lowest, text="breakout", color=color.green, textcolor=color.white, style=label.style_label_up)
+
+
+// Alerts
+// エクスパンションが発生した場合にアラートを設定します。
+alertcondition(expansion_trend_outbreak, title="ATR BB expansion trend outbreak Alert", message="ATR BB expansion trend outbreak Detected")
+
+// 平均値に対する線の描画
+plot(atr_avg, title="Average Line", color=color.red, linewidth=2)
+
+
+
+// ・下向きのバンドウォーク
+// ATRが－2σバンドにそって下降しており、ボラティリティが低下していることを示しています。トレンドの勢いが弱まり、トレンド終了の可能性があるので要注意です。
+
+// ATRの現在値が前日より低いかつ前日もlowerを超えていたかをチェック
+atr_breaking_lower = atr < atr[1] and atr[1] < lower[1]
+
+// ローソク足2本前から過去◯本分のATRが過去100本分の平均値未満かどうかをチェック
+atr_consistently_high = true
+for i = 2 to length_past_cal_2
+    if atr[i] < atr_avg or not atr_within_bb[i] or not bb_width_retention[i]
+        atr_consistently_high := false
+
+// エクスパンションブレイクアウト条件
+expansion_trend_end = atr < lower and bb_width > prev_bb_width * expansion_ratio and atr_breaking_lower and atr_consistently_high
+
+// Plotting labels for expansions
+// エクスパンションが発生した場合に、それぞれの条件に応じてラベルをチャートに表示します。
+if expansion_trend_end
+    label.new(x=bar_index, y=atr_highest, text="breakout", color=color.red, textcolor=color.white, style=label.style_label_down)
+
+// Alerts
+// エクスパンションが発生した場合にアラートを設定します。
+alertcondition(expansion_trend_end, title="ATR BB expansion trend end Alert", message="ATR BB expansion trend end Detected")
+

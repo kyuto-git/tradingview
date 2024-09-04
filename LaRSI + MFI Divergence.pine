@@ -1,0 +1,624 @@
+//@version=5
+indicator(title="LaRSI + MFI Divergence", shorttitle="Stoch + MFI+", format=format.price, precision=2, timeframe="", timeframe_gaps=true, max_bars_back=1500, overlay=false)
+
+
+
+// /////////////
+// //Stochastic
+
+// periodK = input.int(14, title="K期間", minval=1)
+// periodD = input.int(3, title="D期間", minval=1)
+// smoothK = input.int(1, title="%K Smoothing", minval=1)
+// k = ta.sma(ta.stoch(close, high, low, periodK), smoothK)
+// d1 = ta.sma(k, periodD)
+
+// plot(k, title="%K", linewidth=2, color=#2962FF)
+// plot(d1, title="%D", color=#FF6D00)
+
+// h0 = hline(80, "Upper Band", linewidth=1, linestyle=hline.style_solid, color=color.maroon)
+// h1 = hline(20, "Lower Band", linewidth=1, linestyle=hline.style_solid, color=color.maroon)
+// // obLevel = hline(70, title="Overbought", linewidth=2, linestyle=hline.style_dotted)
+// // osLevel = hline(30, title="Oversold", linewidth=2, linestyle=hline.style_dotted)
+
+// h2 = hline(50, linestyle=hline.style_solid, color=color.aqua)
+
+// fill(h0, h1, color=color.rgb(33, 150, 243, 90), title="Background")
+
+
+/////////////
+//LaRSI
+
+src1 = input(title="Source", defval=close)
+alpha = input.float(defval=0.5, title="Alpha", minval=0, maxval=1, step=0.1)
+colorchange = input.bool(title="Change Color ?", defval=false)
+gamma=1-alpha
+L0 = 0.0
+L0 := (1-gamma) * src1 + gamma * nz(L0[1])
+L1 = 0.0
+L1 := -gamma * L0 + nz(L0[1]) + gamma * nz(L1[1])
+
+L2 = 0.0
+L2 := -gamma * L1 + nz(L1[1]) + gamma * nz(L2[1])
+
+L3 = 0.0
+L3 := -gamma * L2 + nz(L2[1]) + gamma * nz(L3[1])
+
+cu= (L0>L1 ? L0-L1 : 0) + (L1>L2 ? L1-L2 : 0) + (L2>L3 ? L2-L3 : 0)
+
+cd= (L0<L1 ? L1-L0 : 0) + (L1<L2 ? L2-L1 : 0) + (L2<L3 ? L3-L2 : 0)
+
+temp= cu+cd==0 ? -1 : cu+cd
+preLaRSI= temp==-1 ? 0 : cu/temp
+LaRSI = 100 * preLaRSI
+
+Color = colorchange ? (LaRSI > LaRSI[1] ? color.green : color.red) : color.lime
+
+plot(LaRSI, title="LaRSI", linewidth=3, color=Color)
+
+// plot(20,title="lowerline", linewidth=1, color=maroon, transp=0)
+// plot(80,title="upperline", linewidth=1, color=maroon, transp=0)
+
+// h0 = hline(50, linestyle=solid, color=aqua)
+
+
+
+
+/////////////
+//MFI+ Divergence Indicator
+// https://jp.tradingview.com/script/CRidT2oU/?aff_id=24685
+
+// ダイバージェンスシグナルとダイバージェンスラインを描画。
+// マネーフロー指数に線形回帰とトレンドラインを使用した場合のサポートとレジスタンスも確認できました。
+// 2本の線形回帰と2本のトレンドラインが引かれている。
+// 2つの線形回帰の値が異なるため、長期線形回帰と短期線形回帰のサポートとレジスタンスが確認できます。
+// 2本のトレンドラインの周期値も異なるので、線形回帰では特定できなかったサポートとレジスタンスを特定することができます。
+// 線形回帰線とトレンドラインは、それぞれオン・オフが可能です。
+// また、各直線回帰線・トレンドラインは、周期値や偏差値を任意に変更することができます。
+
+
+// MFI
+// inpu
+mfig = 'MFI'
+len = input.int(title="Length", defval=14, minval=1, maxval=2000, group=mfig)
+msrc = hlc3
+ad = true
+mf = ta.mfi(msrc, len)
+// overbought=hline(80, title="Overbought", color=color.new(#b2b5be, 50), linestyle=hline.style_solid, linewidth=4)
+// oversold=hline(20, title="Oversold", color=color.new(#b2b5be, 50), linestyle=hline.style_solid, linewidth=4)
+// fill(overbought, oversold, color=color.rgb(126, 87, 194, 90), title="Background")
+
+
+
+// EFIを算出して特定の条件でラベルを出す。
+// MFIが80以上から80以下に下がった時かつ、フォースインデックスが0以上から0以下になったときショート
+// MFI20以下から20以上に上昇した時かつ、フォースインデックスが0以下から0以上になったときロング
+
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+
+length = input.int(13, minval=1)
+efi = ta.ema(ta.change(close) * volume, length)
+
+// 前回のEFIの値とmfの値を取得するための変数
+var float efi_prev = na
+var float mf_prev = na
+
+// // EFI_short と EFI_long の初期値を false に設定
+// var bool EFI_short = false
+// var bool EFI_long = false
+
+// // 条件に合致する場合、EFI_short と EFI_long を true に更新
+// // EFIが0ラインを上から下に抜けた場合
+// if na(efi_prev) == false and efi_prev > 0 and efi <= 0 and mf_prev > 80 and mf < 80
+//     EFI_short := true
+// // EFIが0ラインを下から上に抜けた場合
+// if na(efi_prev) == false and efi_prev < 0 and efi >= 0 and mf_prev < 20 and mf > 20
+//     EFI_long := true
+
+// plotshape(title='bear', series=EFI_short, style=shape.arrowdown, color=#f23645, location=location.absolute, size=size.tiny, offset=-2)
+// plotshape(title='bull', series=EFI_long, style=shape.arrowup, color=#089981, location=location.absolute, size=size.tiny, offset=-2)
+
+// EFIが0ラインを上から下に抜けた場合
+if na(efi_prev) == false and efi_prev > 0 and efi <= 0 and mf_prev > 80 and mf < 80
+    label.new(x=bar_index, y=80, text="bear", style=label.style_label_down, color=color.red)
+
+// EFIが0ラインを下から上に抜けた場合
+if na(efi_prev) == false and efi_prev < 0 and efi >= 0 and mf_prev < 20 and mf > 20
+    label.new(x=bar_index, y=20, text="bull", style=label.style_label_up, color=color.green)
+
+// 現在のEFIの値とmfの値を保存する
+efi_prev := efi
+mf_prev := mf
+
+
+// 現在のEFIの値とmfの値を保存する
+efi_prev := efi
+mf_prev := mf
+
+
+
+
+
+// mfi function
+pine_mf(msrc, len) =>
+    u = math.max(msrc - msrc[1], 0)
+    d = math.max(msrc[1] - msrc, 0)
+    rs = ta.mfi(u, len) / ta.mfi(d, len)
+    res = 100.0 - 100.0 / (1 + rs)
+    res
+pine_mfi(msrc, len) =>
+    b = 1 / len
+    sum = 0.0
+    sum := na(sum[1]) ? ta.sma(msrc, len) : b * msrc + (1 - b) * nz(sum[1])
+u = math.max(msrc - msrc[1], 0)
+d = math.max(msrc[1] - msrc, 0)
+b = 1 / len
+muh = b * math.max(high - close[1], 0) + (1 - b) * ta.mfi(u, len)[1]
+mdh = (1 - b) * ta.mfi(d, len)[1]
+mul = (1 - b) * ta.mfi(u, len)[1]
+mdl = b * math.max(close[1] - low, 0) + (1 - b) * ta.mfi(d, len)[1]
+function(mf, len) =>
+    f = -math.pow(math.abs(math.abs(mf - 50) - 50), 1 + math.pow(len / 14, 0.618) - 1) / math.pow(50, math.pow(len / 14, 0.618) - 1) + 50
+    mfiadvanced = if mf > 50
+        f + 50
+    else
+        -f + 50
+    mfiadvanced
+mfiha = 100.0 - 100.0 / (1 + muh / mdh)
+mfila = 100.0 - 100.0 / (1 + mul / mdl)
+mfia = ta.mfi(msrc, len)
+mfih = if ad
+    function(mfiha, len)
+else
+    mfiha
+mfil = if ad
+    function(mfila, len)
+else
+    mfila
+
+
+// candle
+plotcandle(mf[1], mfih, mfil, mf, 'MFI_Candle', color=ta.change(mf) > 0 ? #ffffff : #000000, wickcolor=#000000, bordercolor=#2a2e39, display=display.none)
+plot(mf, 'MFI_Line', color=ta.change(mf) > 0 ? color.black : color.black, linewidth=2)
+
+
+
+
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+
+// mfi divergence
+// input
+rb = input(2, 'Pivots Rightbars', group=mfig)
+lb = input(15, 'Pivots Leftbars for Pivots', group=mfig)
+sph = input(close, 'Bearish Divs_Pivot Source', group=mfig)
+spl = input(close, 'Bullish Divs_Pivot Source', group=mfig)
+lvl = input.int(5, 'Lookback Level_Divs', options=[1, 2, 3, 4, 5], group=mfig)
+div_col = input.color(color.orange, 'Divergence Line Color', group=mfig)
+
+// pivot
+ph = ta.pivothigh(sph, lb, rb)
+pl = ta.pivotlow(spl, lb, rb)
+
+hi0 = ta.valuewhen(ph, sph[rb], 0)
+hi1 = ta.valuewhen(ph, sph[rb], 1)
+hi2 = ta.valuewhen(ph, sph[rb], 2)
+hi3 = ta.valuewhen(ph, sph[rb], 3)
+hi4 = ta.valuewhen(ph, sph[rb], 4)
+hi5 = ta.valuewhen(ph, sph[rb], 5)
+
+lo0 = ta.valuewhen(pl, spl[rb], 0)
+lo1 = ta.valuewhen(pl, spl[rb], 1)
+lo2 = ta.valuewhen(pl, spl[rb], 2)
+lo3 = ta.valuewhen(pl, spl[rb], 3)
+lo4 = ta.valuewhen(pl, spl[rb], 4)
+lo5 = ta.valuewhen(pl, spl[rb], 5)
+
+lox0 = ta.valuewhen(pl, bar_index[rb], 0)
+lox1 = ta.valuewhen(pl, bar_index[rb], 1)
+lox2 = ta.valuewhen(pl, bar_index[rb], 2)
+lox3 = ta.valuewhen(pl, bar_index[rb], 3)
+lox4 = ta.valuewhen(pl, bar_index[rb], 4)
+lox5 = ta.valuewhen(pl, bar_index[rb], 5)
+
+hix0 = ta.valuewhen(ph, bar_index[rb], 0)
+hix1 = ta.valuewhen(ph, bar_index[rb], 1)
+hix2 = ta.valuewhen(ph, bar_index[rb], 2)
+hix3 = ta.valuewhen(ph, bar_index[rb], 3)
+hix4 = ta.valuewhen(ph, bar_index[rb], 4)
+hix5 = ta.valuewhen(ph, bar_index[rb], 5)
+
+mfi = ta.mfi(close, len)
+
+rh0 = ta.valuewhen(ph, mf[rb], 0)
+rh1 = ta.valuewhen(ph, mf[rb], 1)
+rh2 = ta.valuewhen(ph, mf[rb], 2)
+rh3 = ta.valuewhen(ph, mf[rb], 3)
+rh4 = ta.valuewhen(ph, mf[rb], 4)
+rh5 = ta.valuewhen(ph, mf[rb], 5)
+
+rl0 = ta.valuewhen(pl, mf[rb], 0)
+rl1 = ta.valuewhen(pl, mf[rb], 1)
+rl2 = ta.valuewhen(pl, mf[rb], 2)
+rl3 = ta.valuewhen(pl, mf[rb], 3)
+rl4 = ta.valuewhen(pl, mf[rb], 4)
+rl5 = ta.valuewhen(pl, mf[rb], 5)
+
+// bull & bear divergence logic
+bull_div_1= lo0<lo1
+     and rl1<rl0
+bull_div_2= lo0<lo1 and lo0<lo2
+     and rl2<rl0 and rl2<rl1 and lvl>=2
+bull_div_3= lo0<lo1 and lo0<lo2 and lo0<lo3
+     and rl3<rl0 and rl3<rl1 and rl3<rl2 and lvl>=3
+bull_div_4= lo0<lo1 and lo0<lo2 and lo0<lo3 and lo0<lo4
+     and rl4<rl0 and rl4<rl1 and rl4<rl2 and rl4<rl3 and lvl>=4
+bull_div_5= lo0<lo1 and lo0<lo2 and lo0<lo3 and lo0<lo4 and lo0<lo5
+      and rl5<rl0 and rl5<rl1 and rl5<rl2 and rl5<rl3 and rl5<rl4 and lvl>=5
+
+bear_div_1= hi0>hi1
+     and rh1>rh0
+bear_div_2= hi0>hi1 and hi0>hi2
+     and rh2>rh0 and rh2>rh1 and lvl>=2
+bear_div_3= hi0>hi1 and hi0>hi2 and hi0>hi3
+     and rh3>rh0 and rh3>rh1 and rh3>rh2 and lvl>=3
+bear_div_4= hi0>hi1 and hi0>hi2 and hi0>hi3 and hi0>hi4
+     and rh4>rh0 and rh4>rh1 and rh4>rh2 and rh4>rh3 and lvl>=4
+bear_div_5= hi0>hi1 and hi0>hi2 and hi0>hi3 and hi0>hi4 and hi0>hi5
+     and rh5>rh0 and rh5>rh1 and rh5>rh2 and rh5>rh3 and rh5>rh4 and lvl>=5
+
+new_bull1= bull_div_1 and not bull_div_1[1]
+new_bull2= bull_div_2 and not bull_div_2[1]
+new_bull3= bull_div_3 and not bull_div_3[1]
+new_bull4= bull_div_4 and not bull_div_4[1]
+new_bull5= bull_div_5 and not bull_div_5[1]
+
+new_bear1= bear_div_1 and not bear_div_1[1]
+new_bear2= bear_div_2 and not bear_div_2[1]
+new_bear3= bear_div_3 and not bear_div_3[1]
+new_bear4= bear_div_4 and not bear_div_4[1]
+new_bear5= bear_div_5 and not bear_div_5[1]
+
+recall(x) =>
+    ta.barssince(not na(x))
+
+// bull divergence line plot
+rbull1 = line(na)
+rbull1 := new_bull1 and not new_bull2 and not new_bull3 and not new_bull4 and not new_bull5 ? line.new(lox0, rl0, lox1, rl1, color=div_col, width=2) : na
+rbull2 = line(na)
+rbull2 := new_bull2 and not new_bull3 and not new_bull4 and not new_bull5 ? line.new(lox0, rl0, lox2, rl2, color=div_col, width=2) : na
+rbull3 = line(na)
+rbull3 := new_bull3 and not new_bull4 and not new_bull5 ? line.new(lox0, rl0, lox3, rl3, color=div_col, width=2) : na
+rbull4 = line(na)
+rbull4 := new_bull4 and not new_bull5 ? line.new(lox0, rl0, lox4, rl4, color=div_col, width=2) : na
+rbull5 = line(na)
+rbull5 := new_bull5 ? line.new(lox0, rl0, lox5, rl5, color=div_col, width=2) : na
+
+xbull21 = ta.valuewhen(recall(rbull2) == 0, bar_index, 0) - ta.valuewhen(recall(rbull1) == 0, bar_index, 0)
+xbull31 = ta.valuewhen(recall(rbull3) == 0, bar_index, 0) - ta.valuewhen(recall(rbull1) == 0, bar_index, 0)
+xbull41 = ta.valuewhen(recall(rbull4) == 0, bar_index, 0) - ta.valuewhen(recall(rbull1) == 0, bar_index, 0)
+xbull51 = ta.valuewhen(recall(rbull5) == 0, bar_index, 0) - ta.valuewhen(recall(rbull1) == 0, bar_index, 0)
+xbull32 = ta.valuewhen(recall(rbull3) == 0, bar_index, 0) - ta.valuewhen(recall(rbull2) == 0, bar_index, 0)
+xbull42 = ta.valuewhen(recall(rbull4) == 0, bar_index, 0) - ta.valuewhen(recall(rbull2) == 0, bar_index, 0)
+xbull52 = ta.valuewhen(recall(rbull5) == 0, bar_index, 0) - ta.valuewhen(recall(rbull2) == 0, bar_index, 0)
+xbull43 = ta.valuewhen(recall(rbull4) == 0, bar_index, 0) - ta.valuewhen(recall(rbull3) == 0, bar_index, 0)
+xbull53 = ta.valuewhen(recall(rbull5) == 0, bar_index, 0) - ta.valuewhen(recall(rbull3) == 0, bar_index, 0)
+xbull54 = ta.valuewhen(recall(rbull5) == 0, bar_index, 0) - ta.valuewhen(recall(rbull4) == 0, bar_index, 0)
+
+if new_bull2 and lo2 == ta.valuewhen(new_bull1, lo1, 0) and xbull21 >= 0
+    line.delete(rbull1[xbull21])
+if new_bull3 and lo3 == ta.valuewhen(new_bull1, lo1, 0) and xbull31 >= 0
+    line.delete(rbull1[xbull31])
+if new_bull4 and lo4 == ta.valuewhen(new_bull1, lo1, 0) and xbull41 >= 0
+    line.delete(rbull1[xbull41])
+if new_bull5 and lo5 == ta.valuewhen(new_bull1, lo1, 0) and xbull51 >= 0
+    line.delete(rbull1[xbull51])
+if new_bull3 and lo3 == ta.valuewhen(new_bull2, lo2, 0) and xbull32 >= 0
+    line.delete(rbull2[xbull32])
+if new_bull4 and lo4 == ta.valuewhen(new_bull2, lo2, 0) and xbull42 >= 0
+    line.delete(rbull2[xbull42])
+if new_bull5 and lo5 == ta.valuewhen(new_bull2, lo2, 0) and xbull52 >= 0
+    line.delete(rbull2[xbull52])
+if new_bull4 and lo4 == ta.valuewhen(new_bull3, lo3, 0) and xbull43 >= 0
+    line.delete(rbull3[xbull43])
+if new_bull5 and lo5 == ta.valuewhen(new_bull3, lo3, 0) and xbull53 >= 0
+    line.delete(rbull3[xbull53])
+if new_bull5 and lo5 == ta.valuewhen(new_bull4, lo4, 0) and xbull54 >= 0
+    line.delete(rbull4[xbull54])
+
+// bear divergence line plot
+rbear1 = line(na)
+rbear1 := new_bear1 and not new_bear2 and not new_bear3 and not new_bear4 and not new_bear5 ? line.new(hix0, rh0, hix1, rh1, color=div_col, width=2) : na
+rbear2 = line(na)
+rbear2 := new_bear2 and not new_bear3 and not new_bear4 and not new_bear5 ? line.new(hix0, rh0, hix2, rh2, color=div_col, width=2) : na
+rbear3 = line(na)
+rbear3 := new_bear3 and not new_bear4 and not new_bear5 ? line.new(hix0, rh0, hix3, rh3, color=div_col, width=2) : na
+rbear4 = line(na)
+rbear4 := new_bear4 and not new_bear5 ? line.new(hix0, rh0, hix4, rh4, color=div_col, width=2) : na
+rbear5 = line(na)
+rbear5 := new_bear5 ? line.new(hix0, rh0, hix5, rh5, color=div_col, width=2) : na
+
+xbear21 = ta.valuewhen(recall(rbear2) == 0, bar_index, 0) - ta.valuewhen(recall(rbear1) == 0, bar_index, 0)
+xbear31 = ta.valuewhen(recall(rbear3) == 0, bar_index, 0) - ta.valuewhen(recall(rbear1) == 0, bar_index, 0)
+xbear41 = ta.valuewhen(recall(rbear4) == 0, bar_index, 0) - ta.valuewhen(recall(rbear1) == 0, bar_index, 0)
+xbear51 = ta.valuewhen(recall(rbear5) == 0, bar_index, 0) - ta.valuewhen(recall(rbear1) == 0, bar_index, 0)
+xbear32 = ta.valuewhen(recall(rbear3) == 0, bar_index, 0) - ta.valuewhen(recall(rbear2) == 0, bar_index, 0)
+xbear42 = ta.valuewhen(recall(rbear4) == 0, bar_index, 0) - ta.valuewhen(recall(rbear2) == 0, bar_index, 0)
+xbear52 = ta.valuewhen(recall(rbear5) == 0, bar_index, 0) - ta.valuewhen(recall(rbear2) == 0, bar_index, 0)
+xbear43 = ta.valuewhen(recall(rbear4) == 0, bar_index, 0) - ta.valuewhen(recall(rbear3) == 0, bar_index, 0)
+xbear53 = ta.valuewhen(recall(rbear5) == 0, bar_index, 0) - ta.valuewhen(recall(rbear3) == 0, bar_index, 0)
+xbear54 = ta.valuewhen(recall(rbear5) == 0, bar_index, 0) - ta.valuewhen(recall(rbear4) == 0, bar_index, 0)
+
+if new_bear2 and hi2 == ta.valuewhen(new_bear1, hi1, 0) and xbear21 >= 0
+    line.delete(rbear1[xbear21])
+if new_bear3 and hi3 == ta.valuewhen(new_bear1, hi1, 0) and xbear31 >= 0
+    line.delete(rbear1[xbear31])
+if new_bear4 and hi4 == ta.valuewhen(new_bear1, hi1, 0) and xbear41 >= 0
+    line.delete(rbear1[xbear41])
+if new_bear5 and hi5 == ta.valuewhen(new_bear1, hi1, 0) and xbear51 >= 0
+    line.delete(rbear1[xbear51])
+if new_bear3 and hi3 == ta.valuewhen(new_bear2, hi2, 0) and xbear32 >= 0
+    line.delete(rbear2[xbear32])
+if new_bear4 and hi4 == ta.valuewhen(new_bear2, hi2, 0) and xbear42 >= 0
+    line.delete(rbear2[xbear42])
+if new_bear5 and hi5 == ta.valuewhen(new_bear2, hi2, 0) and xbear52 >= 0
+    line.delete(rbear2[xbear52])
+if new_bear4 and hi4 == ta.valuewhen(new_bear3, hi3, 0) and xbear43 >= 0
+    line.delete(rbear3[xbear43])
+if new_bear5 and hi5 == ta.valuewhen(new_bear3, hi3, 0) and xbear53 >= 0
+    line.delete(rbear3[xbear53])
+if new_bear5 and hi5 == ta.valuewhen(new_bear4, hi4, 0) and xbear54 >= 0
+    line.delete(rbear4[xbear54])
+
+plotshape(title='bull_div_1', series=new_bull1 ? 13 : na, style=shape.triangleup, color=#089981, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bull_div_2', series=new_bull2 ? 13 : na, style=shape.triangleup, color=#089981, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bull_div_3', series=new_bull3 ? 13 : na, style=shape.triangleup, color=#089981, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bull_div_4', series=new_bull4 ? 13 : na, style=shape.triangleup, color=#089981, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bull_div_5', series=new_bull5 ? 13 : na, style=shape.triangleup, color=#089981, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bear_div_1', series=new_bear1 ? 87 : na, style=shape.triangledown, color=#f23645, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bear_div_2', series=new_bear2 ? 87 : na, style=shape.triangledown, color=#f23645, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bear_div_3', series=new_bear3 ? 87 : na, style=shape.triangledown, color=#f23645, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bear_div_4', series=new_bear4 ? 87 : na, style=shape.triangledown, color=#f23645, location=location.absolute, size=size.tiny, offset=-2)
+plotshape(title='bear_div_5', series=new_bear5 ? 87 : na, style=shape.triangledown, color=#f23645, location=location.absolute, size=size.tiny, offset=-2)
+
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+
+// linear regression
+// input
+lrg = 'Linear Regression'
+linreg1 = input(true, 'Longterm Linear Regression On / Off', group=lrg)
+periodTrend = input.int(100, 'Longterm Linear Regression Period', minval=4, group=lrg)
+linreg2 = input(true, 'Shorterm Linear Regression On / Off', group=lrg)
+periodTrend2 = input.int(25, 'Shorterm Linear Regression Period', minval=4, group=lrg)
+deviationsAmnt = input.float(2, 'Deviation', minval=0.1, step=0.1, group=lrg)
+estimatorType = input.string('Unbiased', 'Estimator', options=['Biased', 'Unbiased'], group=lrg)
+var extendType = input.string('Right', 'Extend', options=['Right', 'Segment'], group=lrg) == 'Right' ? extend.right : extend.none
+
+// drawline configuration
+drawLine(X1, Y1, X2, Y2, ExtendType, Color, LineStyle) =>
+    var line Line = na
+    Line := linreg1 ? line.new(X1, Y1, X2, Y2, xloc.bar_index, ExtendType, Color, LineStyle, width=2) : na
+    line.delete(Line[1])
+drawLine2(X1, Y1, X2, Y2, ExtendType, Color, LineStyle) =>
+    var line Line = na
+    Line := linreg2 ? line.new(X1, Y1, X2, Y2, xloc.bar_index, ExtendType, Color, LineStyle, width=2) : na
+    line.delete(Line[1])
+
+rsdcr2(PeriodMinusOne, Deviations, Estimate) =>
+    var period = PeriodMinusOne + 1
+    var devDenominator = Estimate == 'Unbiased' ? PeriodMinusOne : period
+    Ex = 0.0
+    Ex2 = 0.0
+    Exy = 0.0
+    Ey = 0.0
+    for i = 0 to PeriodMinusOne by 1
+        closeI = nz(mf[i])
+        Ex := Ex + i
+        Ex2 := Ex2 + i * i
+        Exy := Exy + closeI * i
+        Ey := Ey + closeI
+        Ey
+    ExEx = Ex * Ex
+    slope = Ex2 == ExEx ? 0.0 : (period * Exy - Ex * Ey) / (period * Ex2 - ExEx)
+    linearRegression = (Ey - slope * Ex) / period
+    intercept = linearRegression + bar_index * slope
+    deviation = 0.0
+    for i = 0 to PeriodMinusOne by 1
+        deviation := deviation + math.pow(nz(mf[i]) - (intercept - bar_index[i] * slope), 2.0)
+        deviation
+    deviation := Deviations * math.sqrt(deviation / devDenominator)
+    correlate = ta.correlation(mf, bar_index, period)
+    r2 = math.pow(correlate, 2.0)
+    [linearRegression, slope, deviation, correlate, r2]
+
+periodMinusOne = periodTrend - 1
+[linReg, slope, deviation, correlate, r2] = rsdcr2(periodMinusOne, deviationsAmnt, estimatorType)
+endPointBar = bar_index - periodTrend + 1
+endPointY = linReg + slope * periodMinusOne
+endPointBar2 = bar_index - periodTrend2 + 1
+
+// drawline plot
+drawLine(endPointBar, endPointY + deviation, bar_index, linReg + deviation, extendType, #e91e63, line.style_solid)
+drawLine(endPointBar, endPointY, bar_index, linReg, extendType, #e91e63, line.style_dotted)
+drawLine(endPointBar, endPointY - deviation, bar_index, linReg - deviation, extendType, #e91e63, line.style_solid)
+drawLine2(endPointBar2, endPointY + deviation, bar_index, linReg + deviation, extendType, color.blue, line.style_solid)
+drawLine2(endPointBar2, endPointY, bar_index, linReg, extendType, color.blue, line.style_dotted)
+drawLine2(endPointBar2, endPointY - deviation, bar_index, linReg - deviation, extendType, color.blue, line.style_solid)
+
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+//  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //  [_ParkF]  //
+
+
+// TRENDLINES
+// input
+group3 = 'TREND LINES'
+o = mf[1]
+h = mfih
+l = mfil
+c = mf
+log_chart = input(true, title='Use Log Chart', group=group3)
+a_Color_Type = input.string(defval='Monochrome', title='Use Trendlines Color Scheme', options=['Colored', 'Monochrome'], group=group3)
+
+group4 = 'PRIMARY TRENDLINES'
+a_Show_Primary = input(true, title='Primary Trendlines On / Off', group=group4)
+a_len = input(20, title='Primary Lookback Length', group=group4)
+a_Extensions = input.string(title='Primary Trendlines Extensions', defval='25', options=["Infinate", "25", "50", "75", "100", "150", "200", "300", "400", "500", "750", "1000"], group=group4)
+a_width = input.int(2, title='Primary Line Width', minval=0, maxval=10, group=group4)
+a_LineStyle_Type = input.string(title='Primary Line Type', defval='Solid', options=['Dashed', 'Dotted', 'Solid'], group=group4)
+a_Line_Type = a_LineStyle_Type == 'Dashed' ? line.style_dashed : a_LineStyle_Type == 'Dotted' ? line.style_dotted : line.style_solid
+a_Rising_Upper_Falling_Lower = false
+
+group5 = 'SECONDARY TRENDLINES'
+b_Show_Secondary = input(true, title='Secondary Trendlines On / Off', group=group5)
+b_len = input(10, title='Secondary Lookback Length', group=group5)
+b_Extensions = input.string(title='Secondary Trendlines Extensions', defval='25', options=["Infinate", "25", "50", "75", "100", "150", "200", "300", "400", "500", "750", "1000"], group=group5)
+b_LineStyle_Type = input.string(title='Secondary Line Type', defval='Dashed', options=['Dashed', 'Dotted', 'Solid'], group=group5)
+b_Line_Type = b_LineStyle_Type == 'Dashed' ? line.style_dashed : b_LineStyle_Type == 'Dotted' ? line.style_dotted : line.style_solid
+b_width = input.int(1, title='Secondary Line Width', minval=0, maxval=10, group=group5)
+b_Rising_Upper_Falling_Lower = false
+
+group10 = 'TRENDLINES COLOR'
+a_Line_Color = input.color(#ffffff, title="Primary Trendline Color", group=group10)
+b_Line_Color = input.color(#ffffff, title="Secondary Trendline Color", group=group10)
+
+a_bar_time = time - time[1]
+b_bar_time = time - time[1]
+
+//primary trendline
+// trendline extension
+a_Extension_Multiplier=
+ a_Extensions=="25"? 1 :
+ a_Extensions=="50"? 2 :
+ a_Extensions=="75"? 3 :
+ a_Extensions=="100"? 4 :
+ a_Extensions=="150"? 6 :
+ a_Extensions=="200"? 8 :
+ a_Extensions=="300"? 12 :
+ a_Extensions=="400"? 16 :
+ a_Extensions=="500"? 20 :
+ a_Extensions=="750"? 30 :
+ a_Extensions=="1000"? 40 :
+ a_Extensions=="Infinate"? 0 : na
+ 
+// trendline function
+a_f_trendline(a__input_function, a__delay, a__only_up, a__extend) =>
+    var int a_Ax = 1
+    var int a_Bx = 1
+    var float a_By = 0
+    var float a_slope = 0
+    a_Ay = fixnan(a__input_function)
+    if ta.change(a_Ay) != 0
+        a_Ax := time[a__delay]
+        a_By := a_Ay[1]
+        a_Bx := a_Ax[1]
+        a_slope := log_chart ? (math.log(a_Ay) - math.log(a_By)) / (a_Ax - a_Bx) : (a_Ay - a_By) / (a_Ax - a_Bx)
+        a_slope
+    else
+        a_Ax := a_Ax[1]
+        a_Bx := a_Bx[1]
+        a_By := a_By[1]
+        a_By
+    // draw trendline
+    var line a_trendline = na
+    var int a_Axbis = 0
+    var float a_Aybis = 0
+    var bool a__xtend = true
+    a_extension_time = a_Extension_Multiplier * a_bar_time * 25
+    a_Axbis := a_Ax + a_extension_time
+    a_Aybis := log_chart ? a_Ay * math.exp(a_extension_time * a_slope) : a_Ay + a_extension_time * a_slope
+    if a_Extension_Multiplier != 0
+        a__xtend := false
+        a__xtend
+    if ta.change(a_Ay) != 0
+        a_line_color_Rising_Falling = a_slope * time < 0 ? a__only_up ? a_Rising_Upper_Falling_Lower ? a_Color_Type == 'Colored' ? color.gray : color.teal : na : a_Color_Type == 'Colored' ? #cf0a83 : color.teal : a__only_up ? a_Color_Type == 'Colored' ? #027521 : color.teal : a_Rising_Upper_Falling_Lower ? a_Color_Type == 'Colored' ? color.gray : color.teal : na
+        a_line_color_Not_Rising_Falling = a_slope * time < 0 ? a__only_up ? na : a_Color_Type == 'Colored' ? #cf0a83 : color.teal : a__only_up ? a_Color_Type == 'Colored' ? #027521 : color.teal : na
+        a_line_color = a_Show_Primary and not a_Rising_Upper_Falling_Lower ? a_line_color_Not_Rising_Falling : a_Show_Primary and a_Rising_Upper_Falling_Lower ? a_line_color_Rising_Falling : na
+        if not na(a_line_color)
+            a_trendline := line.new(a_Bx, a_By, a_Axbis, a_Aybis, xloc.bar_time, extend=a__xtend ? extend.right : extend.none, color=a_Line_Color, style=a_Line_Type, width=a_width)
+            a_trendline
+    [a_Bx, a_By, a_Axbis, a_Aybis, a_slope]
+
+// calc pivot points 
+a_high_point = ta.pivothigh(c > o ? h : l, a_len, a_len / 2)
+a_low_point = ta.pivotlow(c > o ? l : h, a_len, a_len / 2)
+
+// call trendline function
+[a_phx1, a_phy1, a_phx2, a_phy2, a_slope_high] = a_f_trendline(a_high_point, a_len / 2, false, true)
+[a_plx1, a_ply1, a_plx2, a_ply2, a_slope_low] = a_f_trendline(a_low_point, a_len / 2, true, true)
+
+// secondary trendline
+// trendline extension
+b_Extension_Multiplier=
+ b_Extensions=="25"? 1 :
+ b_Extensions=="50"? 2 :
+ b_Extensions=="75"? 3 :
+ b_Extensions=="100"? 4 :
+ b_Extensions=="150"? 6 :
+ b_Extensions=="200"? 8 :
+ b_Extensions=="300"? 12 :
+ b_Extensions=="400"? 16 :
+ b_Extensions=="500"? 20 :
+ b_Extensions=="750"? 30 :
+ b_Extensions=="1000"? 40 :
+ b_Extensions=="Infinate"? 0 : na
+ 
+// trendline function
+b_f_trendline(b__input_function, b__delay, b__only_up, b__extend) =>
+    var int b_Ax = 1
+    var int b_Bx = 1
+    var float b_By = 0
+    var float b_slope = 0
+    b_Ay = fixnan(b__input_function)
+    if ta.change(b_Ay) != 0
+        b_Ax := time[b__delay]
+        b_By := b_Ay[1]
+        b_Bx := b_Ax[1]
+        b_slope := log_chart ? (math.log(b_Ay) - math.log(b_By)) / (b_Ax - b_Bx) : (b_Ay - b_By) / (b_Ax - b_Bx)
+        b_slope
+    else
+        b_Ax := b_Ax[1]
+        b_Bx := b_Bx[1]
+        b_By := b_By[1]
+        b_By
+    // draw trendlines
+    var line b_trendline = na
+    var int b_Axbis = 0
+    var float b_Aybis = 0
+    var bool b__xtend = true
+    b_extension_time = b_Extension_Multiplier * b_bar_time * 25
+    b_Axbis := b_Ax + b_extension_time
+    b_Aybis := log_chart ? b_Ay * math.exp(b_extension_time * b_slope) : b_Ay + b_extension_time * b_slope
+    if b_Extension_Multiplier != 0
+        b__xtend := false
+        b__xtend
+    if ta.change(b_Ay) != 0
+        b_line_color_Rising_Falling = b_slope * time < 0 ? b__only_up ? b_Rising_Upper_Falling_Lower ? a_Color_Type == 'Colored' ? color.gray : color.teal : na : a_Color_Type == 'Colored' ? color.red : color.teal : b__only_up ? a_Color_Type == 'Colored' ? color.green : color.teal : b_Rising_Upper_Falling_Lower ? a_Color_Type == 'Colored' ? color.gray : color.teal : na
+        b_line_color_Not_Rising_Falling = b_slope * time < 0 ? b__only_up ? na : a_Color_Type == 'Colored' ? color.red : color.teal : b__only_up ? a_Color_Type == 'Colored' ? color.green : color.teal : na
+        b_line_color = b_Show_Secondary and not b_Rising_Upper_Falling_Lower ? b_line_color_Not_Rising_Falling : b_Show_Secondary and b_Rising_Upper_Falling_Lower ? b_line_color_Rising_Falling : na
+        if not na(b_line_color)
+            b_trendline := line.new(b_Bx, b_By, b_Axbis, b_Aybis, xloc.bar_time, extend=b__xtend ? extend.right : extend.none, color=b_Line_Color, style=b_Line_Type, width=b_width)
+            b_trendline
+    [b_Bx, b_By, b_Axbis, b_Aybis, b_slope]
+
+// calc pivot points
+b_high_point = ta.pivothigh(c > o ? h : l, b_len, b_len / 2)
+b_low_point = ta.pivotlow(c > o ? l : h, b_len, b_len / 2)
+
+// call trendline function
+[b_phx1, b_phy1, b_phx2, b_phy2, b_slope_high] = b_f_trendline(b_high_point, b_len / 2, false, true)
+[b_plx1, b_ply1, b_plx2, b_ply2, b_slope_low] = b_f_trendline(b_low_point, b_len / 2, true, true)
+
+// plot
+b_color_high = b_slope_high * time < 0 ? color.green : na
+b_color_low = b_slope_low * time > 0 ? color.red : na
+
+
+
+
+

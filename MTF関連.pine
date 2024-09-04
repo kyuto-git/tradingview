@@ -1,0 +1,117 @@
+//Auto Fibonacci Retracement Levels MTF
+
+//HERE'S THE CODE OF AUTO FIBO LEVELS:
+
+//https://jp.tradingview.com/script/6r8T4NjI/
+
+
+//@version=3
+study("Auto Fibo",overlay=true)
+len=input(144, "Auto Fibo Length")
+
+
+hl1272a=input(1.272, "Adjustable Fibo Level")
+
+AFL = input(false, title="Show Adjustable Fibo Level?")
+AFL1 = input(false, title="Show 1.618 Fibo Level?")
+AFL2 = input(false, title="Show 2.618 Fibo Level?")
+AFL3 = input(false, title="Show 3.618 Fibo Level?")
+
+h1=highest(high,len)
+l1=lowest(low,len)
+fark=h1-l1
+
+hl236=l1+fark*(0.236)
+hl382=l1+fark*(0.382)
+hl500=l1+fark*(0.5)
+hl618=l1+fark*(0.618)
+hl786=l1+fark*(0.786)
+hl1272=l1+fark*(hl1272a)
+hl1618=l1+fark*(1.618)
+hl2618=l1+fark*(2.618)
+hl3618=l1+fark*(3.618)
+
+
+lh236=h1-fark*(0.236)
+lh382=h1-fark*(0.382)
+lh500=h1-fark*(0.5)
+lh618=h1-fark*(0.618)
+lh786=h1-fark*(0.786)
+lh1272=h1-fark*(hl1272a)
+lh1618=h1-fark*(1.618)
+lh2618=h1-fark*(2.618)
+lh3618=h1-fark*(3.618)
+
+hbars=-highestbars(high,len)
+lbars=-lowestbars(low,len)
+
+f236=iff(hbars>lbars,hl236,lh236)
+f382=iff(hbars>lbars,hl382,lh382)
+f500=iff(hbars>lbars,hl500,lh500)
+f618=iff(hbars>lbars,hl618,lh618)
+f786=iff(hbars>lbars,hl786,lh786)
+f1272=iff(hbars>lbars,hl1272,lh1272)
+f1618=iff(hbars>lbars,hl1618,lh1618)
+f2618=iff(hbars>lbars,hl2618,lh2618)
+f3618=iff(hbars>lbars,hl3618,lh3618)
+
+
+
+
+plot(l1,trackprice=true, offset=-9999 ,color=#4B0082 ,linewidth=3)
+plot(h1,trackprice=true, offset=-9999, color=#4B0082 ,linewidth=3)
+
+plot(f236,trackprice=true, offset=-9999 ,color=black,title="0.236")
+plot(f382,trackprice=true, offset=-9999 ,color=blue,linewidth=1,title="0.382")
+plot(f500,trackprice=true, offset=-9999 ,color=gray,linewidth=1,title="0.5")
+plot(f618,trackprice=true, offset=-9999 ,color=#800000,linewidth=2,title="0.618")
+plot(f786,trackprice=true, offset=-9999 ,color=black,title="0.786")
+plot(AFL and f1272 ? f1272 : na, trackprice=true, offset=-9999 ,color=red,linewidth=2,title="1.272")
+plot(AFL1 and f1618 ? f1618 : na, trackprice=true, offset=-9999 ,color=red,linewidth=2,title="1.618")
+plot(AFL2 and f2618 ? f2618 : na, trackprice=true, offset=-9999 ,color=red,linewidth=2,title="2.618")
+plot(AFL3 and f3618 ? f3618 : na, trackprice=true, offset=-9999 ,color=red,linewidth=2,title="3.618")
+
+
+
+
+
+/////////////////////////////////////////////////
+//ICHIMOKU MTF
+
+//https://jp.tradingview.com/script/TEojRG83/
+
+//@version=3
+
+//author KıvanÇ @fr3762 on twitter
+//creator Goichi Hosoda
+
+
+study("ICHIMOKU MTF", shorttitle="ICH MTF", overlay=true)
+res = input(title="Time Frame", type=resolution, defval="D")
+TKlength=input(9, "Tenkansen Length", minval=1)
+KJlength=input(26, "Kijunsen Length", minval=1)
+CSHSlength=input(26, "Chikouspan Length/Horizontal Shift", minval=1)
+SBlength=input(52, "SenkouspanB Length", minval=1)
+SAlength=input(26,"SenkouspanA Length", minval=1)
+
+TK=avg(lowest(TKlength), highest(TKlength))
+KJ=avg(lowest(KJlength), highest(KJlength))
+CS=close
+SB=avg(lowest(SBlength), highest(SBlength))
+SA=avg(TK,KJ)
+TKk= security(tickerid, res, TK)
+KJk= security(tickerid, res, KJ)
+CSk= security(tickerid, res, CS)
+SBk= security(tickerid, res, SB)
+SAk= security(tickerid, res, SA)
+
+
+plot(TKk, linewidth=2, color=blue, title="TenkanSen")
+plot(KJk, linewidth=2, color=red, title="KijunSen")
+
+plot(CSk, offset=-CSHSlength, linewidth=2, color=#DDA0DD, title="ChikouSpan")
+
+SenkouA=plot(SAk, offset=CSHSlength,  linewidth=1, color=green, title="SenkouSpanA")
+SenkouB=plot(SBk, offset=CSHSlength, linewidth=1, color=purple, title="SenkouSpanB")
+
+fill(SenkouA, SenkouB, color = SAk > SBk ? green : red)
